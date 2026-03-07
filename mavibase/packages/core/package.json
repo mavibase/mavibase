@@ -1,0 +1,17 @@
+{
+  "name": "@mavibase/core",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "clean": "rimraf dist tsconfig.tsbuildinfo",
+    "build": "rimraf dist tsconfig.tsbuildinfo && pnpm exec tsc --build --force",
+    "dev": "pnpm exec tsc -w -p tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "@types/node": "^20.10.0"
+  }
+}

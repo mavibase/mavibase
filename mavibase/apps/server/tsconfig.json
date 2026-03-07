@@ -1,0 +1,26 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "baseUrl": ".",
+    "paths": {
+      "@mavibase/api": ["../../packages/api/src/index.ts"],
+      "@mavibase/api/*": ["../../packages/api/src/*"],
+      "@mavibase/core": ["../../packages/core/src/index.ts"],
+      "@mavibase/core/*": ["../../packages/core/src/*"],
+      "@mavibase/database": ["../../packages/database/src/index.ts"],
+      "@mavibase/database/*": ["../../packages/database/src/*"],
+      "@mavibase/platform": ["../../packages/platform/src/index.ts"],
+      "@mavibase/platform/*": ["../../packages/platform/src/*"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"],
+  "references": [
+    { "path": "../../packages/api" },
+    { "path": "../../packages/core" },
+    { "path": "../../packages/database" },
+    { "path": "../../packages/platform" }
+  ]
+}

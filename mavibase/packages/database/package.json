@@ -1,0 +1,25 @@
+{
+  "name": "@mavibase/database",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "clean": "rimraf dist tsconfig.tsbuildinfo",
+    "build": "rimraf dist tsconfig.tsbuildinfo && pnpm exec tsc --build --force",
+    "dev": "pnpm exec tsc -w -p tsconfig.json"
+  },
+  "dependencies": {
+    "@mavibase/core": "file:../core",
+    "pg": "^8.11.3",
+    "ioredis": "^5.3.2",
+    "winston": "^3.11.0",
+    "dotenv": "^16.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/pg": "^8.10.9",
+    "typescript": "^5.3.3"
+  }
+}

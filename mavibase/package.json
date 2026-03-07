@@ -1,0 +1,29 @@
+{
+  "name": "mavibase",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "pnpm --filter @mavibase/server dev",
+    "dev:console": "pnpm --filter @mavibase/console dev",
+    "dev:all": "concurrently \"pnpm dev\" \"pnpm dev:console\"",
+    "build": "pnpm --filter @mavibase/core build && pnpm --filter @mavibase/database build && pnpm --filter @mavibase/api build && pnpm --filter @mavibase/platform build",
+    "build:console": "pnpm --filter @mavibase/console build",
+    "clean": "pnpm -r exec rimraf dist",
+    "start": "pnpm --filter @mavibase/server start",
+    "start:console": "pnpm --filter @mavibase/console start",
+    "migrate:platform": "ts-node scripts/migrate-platform.ts",
+    "migrate:database": "ts-node scripts/migrate-database.ts",
+    "migrate": "pnpm migrate:platform && pnpm migrate:database"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "@types/node": "^20.10.0",
+    "rimraf": "^5.0.5",
+    "concurrently": "^9.1.0"
+  }
+}
