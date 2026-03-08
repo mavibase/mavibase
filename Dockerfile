@@ -1,20 +1,16 @@
 # ============================================
-# Mavibase Dockerfile - Multi-stage Build
-# Optimized for size (~600MB-1GB final image)
+# Mavibase Dockerfile
+# Multi-stage build - mirrors local workflow
 # ============================================
 
-# ---- Stage 1: Builder ----
+# ---- Stage 1: Builder (mirrors: pnpm install) ----
 FROM node:20-alpine AS builder
 WORKDIR /app
 
 RUN npm install -g pnpm@9
 
-# Copy all config files needed for build
+# Copy package files
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY tsconfig.json ./
-COPY .npmrc* ./
-
-# Copy package.json for each workspace
 COPY apps/server/package.json ./apps/server/
 COPY apps/console/package.json ./apps/console/
 COPY packages/core/package.json ./packages/core/
@@ -22,7 +18,7 @@ COPY packages/database/package.json ./packages/database/
 COPY packages/api/package.json ./packages/api/
 COPY packages/platform/package.json ./packages/platform/
 
-# Install all dependencies (need dev deps for build)
+# Install ALL dependencies
 RUN pnpm install --frozen-lockfile
 
 # Copy source code
@@ -31,34 +27,24 @@ COPY packages ./packages
 COPY migrations ./migrations
 COPY scripts ./scripts
 
-# Build everything
+# Build everything (packages + console)
 RUN pnpm build
 
-# ---- Stage 2: Runtime (Clean Production Image) ----
-FROM node:20-alpine AS runtime
+# Create public folder if it doesn't exist (Next.js needs it)
+RUN mkdir -p /app/apps/console/public
+
+# ---- Stage 2: Production (only dist folders) ----
+FROM node:20-alpine AS runner
 WORKDIR /app
 
-# Install runtime dependencies
-RUN apk add --no-cache postgresql-client redis && \
-    npm install -g pnpm@9
+# Install only runtime tools
+RUN apk add --no-cache postgresql-client redis
 
 # Create non-root user
 RUN addgroup --system --gid 1001 mavibase && \
     adduser --system --uid 1001 mavibase
 
-# Copy package files for production install
-COPY --from=builder /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
-COPY --from=builder /app/apps/server/package.json ./apps/server/
-COPY --from=builder /app/apps/console/package.json ./apps/console/
-COPY --from=builder /app/packages/core/package.json ./packages/core/
-COPY --from=builder /app/packages/database/package.json ./packages/database/
-COPY --from=builder /app/packages/api/package.json ./packages/api/
-COPY --from=builder /app/packages/platform/package.json ./packages/platform/
-
-# Install production dependencies only (no dev deps, much smaller)
-RUN pnpm install --prod --frozen-lockfile
-
-# Copy ONLY built files from builder (not source code)
+# Copy ONLY built files from builder (no node_modules, no source code)
 COPY --from=builder --chown=mavibase:mavibase /app/apps/server/dist ./apps/server/dist
 COPY --from=builder --chown=mavibase:mavibase /app/apps/console/.next ./apps/console/.next
 COPY --from=builder --chown=mavibase:mavibase /app/apps/console/public ./apps/console/public
@@ -68,6 +54,8 @@ COPY --from=builder --chown=mavibase:mavibase /app/packages/api/dist ./packages/
 COPY --from=builder --chown=mavibase:mavibase /app/packages/platform/dist ./packages/platform/dist
 COPY --from=builder --chown=mavibase:mavibase /app/migrations ./migrations
 COPY --from=builder --chown=mavibase:mavibase /app/scripts ./scripts
+COPY --from=builder --chown=mavibase:mavibase /app/node_modules ./node_modules
+COPY --from=builder --chown=mavibase:mavibase /app/package.json ./package.json
 
 # Copy entrypoint
 COPY --chown=mavibase:mavibase docker-entrypoint.sh /docker-entrypoint.sh
@@ -80,6 +68,6 @@ EXPOSE 5000 3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:5000/health || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:5000/api/health || exit 1
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
