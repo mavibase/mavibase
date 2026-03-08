@@ -1,5 +1,6 @@
 # ============================================
 # Mavibase Dockerfile - Multi-stage Build
+# Optimized for size (~600MB-1GB final image)
 # ============================================
 
 # ---- Stage 1: Builder ----
@@ -8,8 +9,13 @@ WORKDIR /app
 
 RUN npm install -g pnpm@9
 
-# Copy package files
+# Copy all config files needed for build
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY tsconfig.json ./
+COPY tsconfig.base.json ./
+COPY .npmrc ./
+
+# Copy package.json for each workspace
 COPY apps/server/package.json ./apps/server/
 COPY apps/console/package.json ./apps/console/
 COPY packages/core/package.json ./packages/core/
