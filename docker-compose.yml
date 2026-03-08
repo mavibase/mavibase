@@ -1,0 +1,155 @@
+# ============================================
+# Mavibase Docker Compose - All-in-One
+# ============================================
+# This file creates everything you need:
+# - PostgreSQL with both databases (mavibase_platform + mavibase_db)
+# - Redis for caching and rate limiting
+# - Mavibase server (API) on port 5000
+# - Mavibase console (Dashboard) on port 3000
+#
+# Usage:
+#   1. cp .env.example .env
+#   2. Edit .env and change passwords marked [CHANGE THIS]
+#   3. docker compose up -d
+# ============================================
+
+services:
+  # ===========================================
+  # Mavibase Application
+  # ===========================================
+  mavibase:
+    image: ghcr.io/mavibase/mavibase:latest
+    pull_policy: always
+    container_name: mavibase
+    restart: unless-stopped
+    ports:
+      - "${SERVER_PORT:-5000}:5000"   # API
+      - "${CONSOLE_PORT:-3000}:3000"  # Console
+    environment:
+      # Server
+      NODE_ENV: production
+      PORT: 5000
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      
+      # Database connections
+      DATABASE_URL: postgresql://mavibase:${DB_PASSWORD}@postgres:5432/mavibase_db
+      PLATFORM_DB_URL: postgresql://mavibase:${DB_PASSWORD}@postgres:5432/mavibase_platform
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: mavibase
+      
+      # Redis
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      
+      # JWT & Security
+      ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET}
+      REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET}
+      JWT_SECRET: ${JWT_SECRET}
+      API_KEY_PEPPER: ${API_KEY_PEPPER}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      
+      # Token expiry
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
+      JWT_ACCESS_TOKEN_EXPIRY: ${JWT_ACCESS_TOKEN_EXPIRY:-15m}
+      REFRESH_TOKEN_EXPIRES_IN: ${REFRESH_TOKEN_EXPIRES_IN:-7d}
+      JWT_REFRESH_TOKEN_EXPIRY: ${JWT_REFRESH_TOKEN_EXPIRY:-7d}
+      
+      # CORS & Frontend
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
+      
+      # Quotas
+      DEFAULT_MAX_COLLECTIONS: ${DEFAULT_MAX_COLLECTIONS:-100}
+      DEFAULT_MAX_DOCUMENTS_PER_COLLECTION: ${DEFAULT_MAX_DOCUMENTS_PER_COLLECTION:-500}
+      DEFAULT_MAX_STORAGE_MB: ${DEFAULT_MAX_STORAGE_MB:-1024}
+      
+      # Rate limiting
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-900000}
+      RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-10000}
+      
+      # Document settings
+      MAX_REQUEST_BODY_SIZE: ${MAX_REQUEST_BODY_SIZE:-1mb}
+      MAX_DOCUMENT_SIZE_KB: ${MAX_DOCUMENT_SIZE_KB:-256}
+      MAX_QUERY_LIMIT: ${MAX_QUERY_LIMIT:-100}
+      MAX_BULK_OPERATIONS: ${MAX_BULK_OPERATIONS:-1000}
+      
+      # Email (optional)
+      ENABLE_EMAIL_SERVICE: ${ENABLE_EMAIL_SERVICE:-false}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      
+      # Auto-migrate on startup
+      AUTO_MIGRATE: ${AUTO_MIGRATE:-true}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - mavibase-network
+
+  # ===========================================
+  # PostgreSQL Database
+  # ===========================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: mavibase-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mavibase
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: mavibase_platform
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mavibase -d mavibase_platform"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - mavibase-network
+
+  # ===========================================
+  # Redis Cache
+  # ===========================================
+  redis:
+    image: redis:7-alpine
+    container_name: mavibase-redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mavibase-network
+
+# ===========================================
+# Volumes
+# ===========================================
+volumes:
+  postgres_data:
+    name: mavibase-postgres-data
+  redis_data:
+    name: mavibase-redis-data
+
+# ===========================================
+# Networks
+# ===========================================
+networks:
+  mavibase-network:
+    name: mavibase-network
+    driver: bridge

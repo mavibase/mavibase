@@ -1,0 +1,90 @@
+# =========================
+# Dependencies (ALL folders)
+# =========================
+node_modules/
+/node_modules
+**/node_modules
+apps/*/node_modules
+packages/*/node_modules
+.pnp
+.pnp.js
+.pnpm-store/
+.pnpm/
+
+# =========================
+# Next.js (ALL apps)
+# =========================
+.next/
+**/.next/
+apps/*/.next/
+out/
+**/out/
+
+# =========================
+# Build / Production (ALL folders)
+# =========================
+dist/
+build/
+coverage/
+
+# =========================
+# Debug / Logs
+# =========================
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+logs/
+*.log
+
+# =========================
+# Environment files
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Vercel
+# =========================
+.vercel
+
+# =========================
+# TypeScript
+# =========================
+*.tsbuildinfo
+next-env.d.ts
+
+# =========================
+# OS files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# IDE / Editors
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# =========================
+# Cache / Temp
+# =========================
+.cache/
+*.tmp
+
+# =========================
+# Git
+# =========================
+.git/
+.gitignore
+
+# =========================
+# Docker files (not needed in image)
+# =========================
+Dockerfile*
+docker-compose*
+.dockerignore
