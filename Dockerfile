@@ -59,7 +59,6 @@ COPY --from=builder /app/packages/platform/package.json ./packages/platform/
 RUN pnpm install --prod --frozen-lockfile
 
 # Copy ONLY built files from builder (not source code)
-COPY --from=builder --chown=mavibase:mavibase /app/apps/server/dist ./apps/server/dist
 COPY --from=builder --chown=mavibase:mavibase /app/apps/console/.next ./apps/console/.next
 COPY --from=builder --chown=mavibase:mavibase /app/packages/core/dist ./packages/core/dist
 COPY --from=builder --chown=mavibase:mavibase /app/packages/database/dist ./packages/database/dist
