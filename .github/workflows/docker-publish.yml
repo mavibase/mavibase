@@ -1,9 +1,8 @@
 # ============================================
 # Mavibase Docker Image Publish Workflow
 # ============================================
-# Automatically builds and publishes Docker images to:
-# - GitHub Container Registry (ghcr.io)
-# - Docker Hub (optional)
+# Builds & pushes Docker images to GHCR
+# Multi-arch, caching, and attestation included
 # ============================================
 
 name: Publish Docker Image
@@ -31,16 +30,20 @@ jobs:
       attestations: write
 
     steps:
+      # 1. Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 2. Set up QEMU for multi-arch builds
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
+      # 3. Set up Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to GitHub Container Registry
+      # 4. Login to GitHub Container Registry
+      - name: Login to GHCR
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
@@ -48,15 +51,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Optional: Uncomment to also push to Docker Hub
-      # - name: Login to Docker Hub
-      #   if: github.event_name != 'pull_request'
-      #   uses: docker/login-action@v3
-      #   with:
-      #     username: ${{ secrets.DOCKERHUB_USERNAME }}
-      #     password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Extract metadata (tags, labels)
+      # 5. Extract metadata (tags & labels)
+      - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -70,18 +66,24 @@ jobs:
             type=semver,pattern={{major}}
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build Docker image
-        run: |
-          docker buildx build \
-            --platform linux/amd64,linux/arm64 \
-            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
-            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main \
-            --label org.opencontainers.image.source=${{ github.repository }} \
-            --push \
-            .
+      # 6. Build & push Docker image (multi-arch)
+      - name: Build and push Docker image
+        id: build-push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
+      # 7. Generate artifact attestation
       - name: Generate artifact attestation
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && steps.build-push.outputs.digest != ''
         uses: actions/attest-build-provenance@v1
         with:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
