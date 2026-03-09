@@ -66,15 +66,16 @@ echo "============================================"
 # Start the server and console
 cd /app
 
-# Run server in background
-node apps/server/dist/main.js &
+# Run server in background (use PORT env var if set, default to 5000)
+SERVER_PORT=${PORT:-5000}
+PORT=$SERVER_PORT node apps/server/dist/main.js &
 SERVER_PID=$!
 
-# Run console
-node apps/console/server.js &
+# Run console on port 3000
+PORT=3000 node apps/console/server.js &
 CONSOLE_PID=$!
 
-echo "Server running on port 5000 (PID: $SERVER_PID)"
+echo "Server running on port $SERVER_PORT (PID: $SERVER_PID)"
 echo "Console running on port 3000 (PID: $CONSOLE_PID)"
 
 # Wait for any process to exit
