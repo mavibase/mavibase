@@ -78,8 +78,5 @@ CONSOLE_PID=$!
 echo "Server running on port $SERVER_PORT (PID: $SERVER_PID)"
 echo "Console running on port 3000 (PID: $CONSOLE_PID)"
 
-# Wait for any process to exit
-wait -n
-
-# Exit with status of process that exited first
-exit $?
+# Wait for all background processes to complete
+wait $SERVER_PID $CONSOLE_PID
