@@ -46,22 +46,23 @@ RUN apk add --no-cache postgresql-client redis && \
 RUN addgroup --system --gid 1001 mavibase && \
     adduser --system --uid 1001 mavibase
 
-# Copy package files for production install
-COPY --from=builder /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
+# Copy node_modules from builder (avoids pnpm symlink issues with scoped packages)
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/apps/server/node_modules ./apps/server/node_modules
+COPY --from=builder /app/apps/console/node_modules ./apps/console/node_modules
+COPY --from=builder /app/packages/core/node_modules ./packages/core/node_modules
+COPY --from=builder /app/packages/database/node_modules ./packages/database/node_modules
+COPY --from=builder /app/packages/api/node_modules ./packages/api/node_modules
+COPY --from=builder /app/packages/platform/node_modules ./packages/platform/node_modules
+
+# Copy package files (needed for runtime)
+COPY --from=builder /app/package.json /app/pnpm-workspace.yaml ./
 COPY --from=builder /app/apps/server/package.json ./apps/server/
 COPY --from=builder /app/apps/console/package.json ./apps/console/
 COPY --from=builder /app/packages/core/package.json ./packages/core/
 COPY --from=builder /app/packages/database/package.json ./packages/database/
 COPY --from=builder /app/packages/api/package.json ./packages/api/
 COPY --from=builder /app/packages/platform/package.json ./packages/platform/
-
-# Create workspace directories for pnpm symlinks
-RUN mkdir -p apps/server/node_modules apps/console/node_modules \
-    packages/core/node_modules packages/database/node_modules \
-    packages/api/node_modules packages/platform/node_modules
-
-# Install production dependencies only (no dev deps, much smaller)
-RUN pnpm install --prod --frozen-lockfile
 
 # Copy ONLY built files from builder (not source code)
 COPY --from=builder --chown=mavibase:mavibase /app/apps/console/.next ./apps/console/.next
