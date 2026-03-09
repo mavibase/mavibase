@@ -51,8 +51,9 @@ RUN addgroup --system --gid 1001 mavibase && \
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/apps/console/node_modules ./apps/console/node_modules
 
-# Copy native module dependencies needed by server (argon2, bcrypt, etc)
-COPY --from=builder /app/node_modules/@node-rs ./node_modules/@node-rs
+# Copy native module dependencies needed by server (argon2)
+# argon2 has native bindings that must exist at runtime
+COPY --from=builder /app/node_modules/argon2 ./node_modules/argon2
 
 # Copy package files (needed for runtime)
 COPY --from=builder /app/package.json /app/pnpm-workspace.yaml ./
