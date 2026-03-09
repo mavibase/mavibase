@@ -28,7 +28,7 @@ async function backfillSizes() {
     const docResult = await client.query(`
       UPDATE documents
       SET size_bytes = LENGTH(data::text) + LENGTH(id::text) + 100
-      WHERE size_bytes = 0 OR size_bytes IS NULL
+      WHERE (size_bytes = 0 OR size_bytes IS NULL)
     `)
     console.log(`Updated ${docResult.rowCount} documents`)
 
@@ -37,7 +37,7 @@ async function backfillSizes() {
     const colResult = await client.query(`
       UPDATE collections
       SET size_bytes = LENGTH(name) + LENGTH(key) + COALESCE(LENGTH(description), 0) + 200
-      WHERE size_bytes = 0 OR size_bytes IS NULL
+      WHERE (size_bytes = 0 OR size_bytes IS NULL)
     `)
     console.log(`Updated ${colResult.rowCount} collections`)
 
@@ -89,21 +89,57 @@ async function backfillSizes() {
       const databaseId = db.id
 
       // Calculate sizes for this database
-      const sizeResult = await client.query(
-        `
-        SELECT 
-          COALESCE(SUM(d.size_bytes), 0) as documents,
-          COALESCE((SELECT SUM(size_bytes) FROM collections WHERE database_id = $1 AND deleted_at IS NULL), 0) as collections,
-          COALESCE((SELECT SUM(im.size_bytes) FROM index_metadata im JOIN collections c ON im.collection_id = c.id WHERE c.database_id = $1), 0) as indexes,
-          COALESCE((SELECT SUM(cs.size_bytes) FROM collection_schemas cs JOIN collections c ON cs.collection_id = c.id WHERE c.database_id = $1), 0) as schemas,
-          COALESCE((SELECT SUM(r.size_bytes) FROM relationships r JOIN collections c ON r.source_collection_id = c.id WHERE c.database_id = $1), 0) as relationships,
-          COALESCE((SELECT SUM(dv.size_bytes) FROM document_versions dv JOIN collections c ON dv.collection_id = c.id WHERE c.database_id = $1), 0) as versions
-         FROM documents d
-         JOIN collections c ON d.collection_id = c.id
-         WHERE c.database_id = $1 AND d.deleted_at IS NULL
-        `,
-        [databaseId],
-      )
+    const sizeResult = await client.query(
+      `
+      SELECT 
+        COALESCE(SUM(d.size_bytes), 0) as documents,
+        COALESCE(
+          (SELECT SUM(size_bytes) 
+           FROM collections 
+           WHERE database_id = $1 
+             AND deleted_at IS NULL),
+          0
+        ) as collections,
+        COALESCE(
+          (SELECT SUM(im.size_bytes) 
+           FROM index_metadata im 
+           JOIN collections c ON im.collection_id = c.id 
+           WHERE c.database_id = $1 
+             AND c.deleted_at IS NULL),
+          0
+        ) as indexes,
+        COALESCE(
+          (SELECT SUM(cs.size_bytes) 
+           FROM collection_schemas cs 
+           JOIN collections c ON cs.collection_id = c.id 
+           WHERE c.database_id = $1 
+             AND c.deleted_at IS NULL),
+          0
+        ) as schemas,
+        COALESCE(
+          (SELECT SUM(r.size_bytes) 
+           FROM relationships r 
+           JOIN collections c ON r.source_collection_id = c.id 
+           WHERE c.database_id = $1 
+             AND c.deleted_at IS NULL),
+          0
+        ) as relationships,
+        COALESCE(
+          (SELECT SUM(dv.size_bytes) 
+           FROM document_versions dv 
+           JOIN collections c ON dv.collection_id = c.id 
+           WHERE c.database_id = $1 
+             AND c.deleted_at IS NULL),
+          0
+        ) as versions
+       FROM documents d
+       JOIN collections c ON d.collection_id = c.id
+       WHERE c.database_id = $1 
+         AND d.deleted_at IS NULL
+         AND c.deleted_at IS NULL
+      `,
+      [databaseId],
+    )
 
       const sizes = sizeResult.rows[0]
       const documentsSize = Number(sizes.documents)

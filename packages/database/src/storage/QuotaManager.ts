@@ -311,7 +311,9 @@ export class QuotaManager {
         `SELECT COUNT(*) as count 
          FROM documents d
          JOIN collections c ON d.collection_id = c.id
-         WHERE c.database_id = $1 AND d.deleted_at IS NULL`,
+         WHERE c.database_id = $1 
+           AND d.deleted_at IS NULL
+           AND c.deleted_at IS NULL`,
         [databaseId],
       )
       const documentCount = Number.parseInt(documentsResult.rows[0].count)
@@ -321,7 +323,9 @@ export class QuotaManager {
         `SELECT COALESCE(SUM(LENGTH(d.data::text)), 0) as bytes
          FROM documents d
          JOIN collections c ON d.collection_id = c.id
-         WHERE c.database_id = $1 AND d.deleted_at IS NULL`,
+         WHERE c.database_id = $1 
+           AND d.deleted_at IS NULL
+           AND c.deleted_at IS NULL`,
         [databaseId],
       )
       const storageBytes = Number.parseInt(storageResult.rows[0].bytes)
@@ -477,6 +481,7 @@ async recalculateSizes(databaseId: string): Promise<DatabaseSizeBreakdown> {
           JOIN collections c ON d.collection_id = c.id
           WHERE c.database_id = $1 
             AND d.deleted_at IS NULL
+            AND c.deleted_at IS NULL
         ),
         collection_sizes AS (
           -- Collections
@@ -493,6 +498,7 @@ async recalculateSizes(databaseId: string): Promise<DatabaseSizeBreakdown> {
           FROM collection_schemas cs
           JOIN collections c ON cs.collection_id = c.id
           WHERE c.database_id = $1
+            AND c.deleted_at IS NULL
         ),
         attribute_sizes AS (
           -- Attributes
@@ -501,6 +507,7 @@ async recalculateSizes(databaseId: string): Promise<DatabaseSizeBreakdown> {
           FROM attributes a
           JOIN collections c ON a.collection_id = c.id
           WHERE c.database_id = $1
+            AND c.deleted_at IS NULL
         ),
         relationship_sizes AS (
           -- Relationships
@@ -518,6 +525,8 @@ async recalculateSizes(databaseId: string): Promise<DatabaseSizeBreakdown> {
           JOIN documents d ON dv.document_id = d.id
           JOIN collections c ON d.collection_id = c.id
           WHERE c.database_id = $1
+            AND d.deleted_at IS NULL
+            AND c.deleted_at IS NULL
         )
         SELECT 
           d.documents_size,

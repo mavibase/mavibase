@@ -279,15 +279,14 @@ async update(
 }
 
   async softDelete(id: string, projectId?: string): Promise<void> {
-    let query = `UPDATE collections SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NULL`
+    // Now implemented as a hard delete so collections are physically removed.
+    let query = `DELETE FROM collections WHERE id = $1`
     const params: any[] = [id]
 
     if (projectId) {
-      query = `UPDATE collections c
-               SET deleted_at = CURRENT_TIMESTAMP
-               FROM databases d
+      query = `DELETE FROM collections c
+               USING databases d
                WHERE c.id = $1 
-                 AND c.deleted_at IS NULL 
                  AND c.database_id = d.id 
                  AND d.project_id = $2
                  AND d.deleted_at IS NULL`

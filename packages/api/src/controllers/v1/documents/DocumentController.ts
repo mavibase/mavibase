@@ -943,6 +943,21 @@ if (schemaResult.rows.length > 0) {
         collectionId,
       }))
 
+      // Preload document sizes so we can accurately update storage usage
+      // after we know which deletes actually succeeded.
+      const docsResult = await pool.query(
+        `SELECT id, data 
+         FROM documents 
+         WHERE collection_id = $1 
+           AND id = ANY($2::uuid[]) 
+           AND deleted_at IS NULL`,
+        [collectionId, ids],
+      )
+      const sizeById = new Map<string, number>()
+      for (const row of docsResult.rows) {
+        sizeById.set(row.id, JSON.stringify(row.data).length)
+      }
+
       // Get transaction client
       const txClient = this.getTransactionClient(req)
 
@@ -954,6 +969,23 @@ if (schemaResult.rows.length > 0) {
 
       // Increment by number of successful deletes
       this.incrementTransactionCount(req, result.success)
+
+      // Update quotas - decrement document count and storage for successfully deleted docs
+      if (result.success > 0) {
+        await this.quotaManager.decrementDocumentCount(databaseId, result.success)
+
+        let freedBytes = 0
+        for (const id of result.deleted as string[]) {
+          const size = sizeById.get(id)
+          if (typeof size === "number" && size > 0) {
+            freedBytes += size
+          }
+        }
+
+        if (freedBytes > 0) {
+          await this.quotaManager.updateStorageUsage(databaseId, -freedBytes)
+        }
+      }
 
       res.json({
         success: true,

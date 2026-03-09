@@ -272,15 +272,14 @@ export class DocumentRepository {
 
   async softDelete(id: string, collectionId: string, projectId?: string, tx?: PoolClient): Promise<void> {
     let query = `
-      UPDATE documents d
-      SET deleted_at = CURRENT_TIMESTAMP
-      FROM collections c
+      DELETE FROM documents d
+      USING collections c
       JOIN databases db ON c.database_id = db.id
-      WHERE d.id = $1 AND d.collection_id = $2 
-      AND d.collection_id = c.id 
-      AND d.deleted_at IS NULL
-      AND c.deleted_at IS NULL
-      AND db.deleted_at IS NULL
+      WHERE d.id = $1 
+        AND d.collection_id = $2 
+        AND d.collection_id = c.id 
+        AND c.deleted_at IS NULL
+        AND db.deleted_at IS NULL
     `
     const params: any[] = [id, collectionId]
 
@@ -294,6 +293,14 @@ export class DocumentRepository {
     if (result.rowCount === 0) {
       throw new AppError(404, "NOT_FOUND", "Document not found or access denied")
     }
+  }
+
+  /**
+   * Backwards-compatible delete method used by HTTP controllers.
+   * Now implemented as a hard delete so documents are physically removed.
+   */
+  async delete(id: string, collectionId: string, projectId?: string, tx?: PoolClient): Promise<void> {
+    await this.softDelete(id, collectionId, projectId, tx)
   }
 
   async bulkCreate(documents: Document[], projectId?: string, tx?: PoolClient): Promise<any> {
@@ -507,15 +514,14 @@ export class DocumentRepository {
       for (const item of ids) {
         try {
           let query = `
-            UPDATE documents d
-            SET deleted_at = CURRENT_TIMESTAMP
-            FROM collections c
+            DELETE FROM documents d
+            USING collections c
             JOIN databases db ON c.database_id = db.id
-            WHERE d.id = $1 AND d.collection_id = $2 
-            AND d.collection_id = c.id 
-            AND d.deleted_at IS NULL
-            AND c.deleted_at IS NULL
-            AND db.deleted_at IS NULL
+            WHERE d.id = $1 
+              AND d.collection_id = $2 
+              AND d.collection_id = c.id 
+              AND c.deleted_at IS NULL
+              AND db.deleted_at IS NULL
           `
           const params: any[] = [item.id, item.collectionId]
 

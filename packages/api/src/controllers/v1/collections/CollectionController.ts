@@ -259,8 +259,28 @@ export class CollectionController {
 
       this.policy.enforceCollectionDelete(req.identity!, collection)
 
+      // Calculate document and storage impact before deleting (for quotas).
+      const docStats = await pool.query(
+        `SELECT 
+           COUNT(*) as count,
+           COALESCE(SUM(octet_length(data::text)), 0) as storage_bytes
+         FROM documents
+         WHERE collection_id = $1`,
+        [collectionId],
+      )
+      const documentCount = parseInt(docStats.rows[0]?.count || "0", 10)
+      const storageBytes = parseInt(docStats.rows[0]?.storage_bytes || "0", 10)
+
       await this.repository.softDelete(collectionId, projectId)
       await this.quotaManager.decrementCollectionCount(collection.database_id)
+
+      // Adjust document and storage quotas for the parent database.
+      if (documentCount > 0) {
+        await this.quotaManager.decrementDocumentCount(collection.database_id, documentCount)
+      }
+      if (storageBytes > 0) {
+        await this.quotaManager.updateStorageUsage(collection.database_id, -storageBytes)
+      }
 
       res.json({
         success: true,

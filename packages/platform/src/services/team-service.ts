@@ -1,4 +1,5 @@
 import { pool } from "../config/database"
+import { pool as databasePool } from "@mavibase/database"
 import { v4 as uuidv4 } from "uuid"
 import { nanoid } from "nanoid"
 import type { PoolClient } from "pg"
@@ -204,33 +205,69 @@ export const updateTeam = async (teamId: string, userId: string, updates: any) =
 }
 
 export const deleteTeam = async (teamId: string, userId: string) => {
-  // Verify user is owner
-  const memberCheck = await pool.query(`SELECT role FROM team_members WHERE team_id = $1 AND user_id = $2`, [
-    teamId,
-    userId,
-  ])
+  const client = await pool.connect()
 
-  if (memberCheck.rows.length === 0 || memberCheck.rows[0].role !== "owner") {
-    throw {
-      statusCode: 403,
-      code: "INSUFFICIENT_PERMISSIONS",
-      message: "Only team owners can delete teams",
+  try {
+    // Verify user is owner
+    const memberCheck = await client.query(`SELECT role FROM team_members WHERE team_id = $1 AND user_id = $2`, [
+      teamId,
+      userId,
+    ])
+
+    if (memberCheck.rows.length === 0 || memberCheck.rows[0].role !== "owner") {
+      throw {
+        statusCode: 403,
+        code: "INSUFFICIENT_PERMISSIONS",
+        message: "Only team owners can delete teams",
+      }
     }
-  }
 
-  // Check if it's user's last team
-  const teamsCount = await pool.query(`SELECT COUNT(*) as count FROM team_members WHERE user_id = $1`, [userId])
+    // Check if it's user's last team
+    const teamsCount = await client.query(`SELECT COUNT(*) as count FROM team_members WHERE user_id = $1`, [userId])
 
-  if (Number.parseInt(teamsCount.rows[0].count) <= 1) {
-    throw {
-      statusCode: 400,
-      code: "CANNOT_DELETE_LAST_TEAM",
-      message: "Cannot delete your last team",
+    if (Number.parseInt(teamsCount.rows[0].count) <= 1) {
+      throw {
+        statusCode: 400,
+        code: "CANNOT_DELETE_LAST_TEAM",
+        message: "Cannot delete your last team",
+      }
     }
-  }
 
-  // Delete team (cascade will handle members and projects)
-  await pool.query(`DELETE FROM teams WHERE id = $1`, [teamId])
+    await client.query("BEGIN")
+
+    // Collect all project IDs for this team before deleting it (control-plane DB).
+    const projectsResult = await client.query<{ id: string }>(
+      `SELECT id FROM projects WHERE team_id = $1`,
+      [teamId],
+    )
+    const projectIds = projectsResult.rows.map((row) => row.id)
+
+    if (projectIds.length > 0) {
+      // Hard-delete all databases for these projects in the data-plane DB.
+      await databasePool.query(
+        `DELETE FROM databases 
+         WHERE project_id = ANY($1::uuid[])`,
+        [projectIds],
+      )
+
+      // Clean up any legacy usage rows for these projects (in addition to FK cascade).
+      await client.query(
+        `DELETE FROM project_usage 
+         WHERE project_id = ANY($1::uuid[])`,
+        [projectIds],
+      )
+    }
+
+    // Delete team (cascade will handle members and projects in the platform DB).
+    await client.query(`DELETE FROM teams WHERE id = $1`, [teamId])
+
+    await client.query("COMMIT")
+  } catch (error) {
+    await client.query("ROLLBACK")
+    throw error
+  } finally {
+    client.release()
+  }
 }
 
 export const getUserTeams = async (userId: string) => {
