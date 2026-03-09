@@ -13,6 +13,16 @@ until pg_isready -h "${DB_HOST:-postgres}" -p "${DB_PORT:-5432}" -U "${DB_USER:-
 done
 echo "PostgreSQL is ready!"
 
+# Ensure mavibase_db database exists (fallback if init-db.sh didn't run)
+echo "Ensuring mavibase_db database exists..."
+PGPASSWORD="${DB_PASSWORD:-$(echo $DATABASE_URL | sed -E 's|.*://[^:]+:([^@]+)@.*|\1|')}" \
+psql -h "${DB_HOST:-postgres}" -p "${DB_PORT:-5432}" -U "${DB_USER:-mavibase}" -d mavibase_platform -tc \
+  "SELECT 1 FROM pg_database WHERE datname = 'mavibase_db'" | grep -q 1 || \
+PGPASSWORD="${DB_PASSWORD:-$(echo $DATABASE_URL | sed -E 's|.*://[^:]+:([^@]+)@.*|\1|')}" \
+psql -h "${DB_HOST:-postgres}" -p "${DB_PORT:-5432}" -U "${DB_USER:-mavibase}" -d mavibase_platform -c \
+  "CREATE DATABASE mavibase_db;" 2>/dev/null || echo "mavibase_db already exists"
+echo "Database check complete!"
+
 # Wait for Redis to be ready (if configured)
 if [ -n "$REDIS_URL" ]; then
   echo "Waiting for Redis..."

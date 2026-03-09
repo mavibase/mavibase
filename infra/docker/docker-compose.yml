@@ -105,7 +105,7 @@ services:
       POSTGRES_DB: mavibase_platform
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./infra/docker/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
     ports:
       - "${DB_PORT:-5432}:5432"
     healthcheck:
