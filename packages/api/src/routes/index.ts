@@ -1,6 +1,7 @@
 import { type Express, Router } from "express"
 import { identityMiddleware } from "@mavibase/platform"
 import { enrichIdentityMiddleware } from "../middleware/enrich-identity"
+import { egressTracker } from "../middleware/egress-tracker"
 import { databaseRoutes } from "./v1/databases"
 import { collectionRoutes } from "./v1/collections"
 import { documentRoutes } from "./v1/documents"
@@ -27,6 +28,9 @@ export const setupRoutes = (app: Express) => {
 
   // Enrich identity with DB-side project roles and permissions
   apiRouter.use(enrichIdentityMiddleware)
+
+  // Track egress for API-key authenticated requests only
+  apiRouter.use(egressTracker())
 
   // Mount routes (all protected by identity middleware)
   apiRouter.use("/databases", databaseRoutes)

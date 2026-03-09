@@ -38,6 +38,8 @@ interface UsageStats {
   documents: number
   storage_bytes: number
   api_keys: number
+  egress_bytes: number
+  egress_limit_bytes: number
 }
 
 interface TimeSeriesPoint {
@@ -218,11 +220,13 @@ export function OverviewContent() {
       const u = usageRes.data?.data?.usage || {}
       const s = statsRes.data?.data?.stats || {}
       setUsage({
-        databases:    Number(u.databases?.value   ?? s.databases_count   ?? 0),
-        collections:  Number(u.collections?.value ?? s.collections_count ?? 0),
-        documents:    Number(u.documents?.value   ?? s.documents_count   ?? 0),
-        storage_bytes: Number(u.storage_bytes?.value ?? 0),
-        api_keys:     Number(s.api_keys_count ?? 0),
+        databases:          Number(u.databases?.value    ?? s.databases_count   ?? 0),
+        collections:        Number(u.collections?.value  ?? s.collections_count ?? 0),
+        documents:          Number(u.documents?.value    ?? s.documents_count   ?? 0),
+        storage_bytes:      Number(u.storage_bytes?.value ?? 0),
+        api_keys:           Number(s.api_keys_count ?? 0),
+        egress_bytes:       Number(u.egress_bytes?.value ?? 0),
+        egress_limit_bytes: Number(u.egress_bytes?.limit ?? 100 * 1024 * 1024 * 1024),
       })
     } catch {
       setUsage({ databases: 0, collections: 0, documents: 0, storage_bytes: 0, api_keys: 0 })
@@ -379,30 +383,46 @@ export function OverviewContent() {
           )}
         </div>
 
-        {/* API Requests — not yet tracked */}
+        {/* Egress */}
         <div className="rounded-lg border border-border bg-card p-4 flex flex-col gap-4">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="text-sm font-medium text-foreground">API Requests & Egress</p>
+              <p className="text-sm font-medium text-foreground">Egress</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Incoming requests and bandwidth consumed
+                Outbound data via API key requests
               </p>
             </div>
-            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border border-border bg-secondary text-muted-foreground">
-              Coming soon
-            </span>
           </div>
-          <EmptyChart message="Per-request logging and egress tracking will be available in a future release." />
-          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border">
-            <div className="flex flex-col gap-0.5">
-              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Total Requests</p>
-              <p className="text-sm font-semibold text-muted-foreground/50">—</p>
+          {loadingUsage ? (
+            <div className="flex flex-col gap-2">
+              <Skeleton className="h-3 w-full" />
+              <Skeleton className="h-2 w-full" />
             </div>
-            <div className="flex flex-col gap-0.5">
-              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Egress</p>
-              <p className="text-sm font-semibold text-muted-foreground/50">—</p>
-            </div>
-          </div>
+          ) : (() => {
+            const used = usage?.egress_bytes ?? 0
+            const limit = usage?.egress_limit_bytes ?? (100 * 1024 * 1024 * 1024)
+            const pct = limit > 0 ? Math.min((used / limit) * 100, 100) : 0
+            const now = new Date()
+            const nextReset = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+            const daysLeft = Math.ceil((nextReset.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+            return (
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{formatBytes(used)} used</span>
+                  <span>{formatBytes(limit)} limit</span>
+                </div>
+                <div className="h-2 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${pct > 80 ? "bg-amber-500" : "bg-primary"}`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {pct.toFixed(1)}% used &middot; Resets in {daysLeft} {daysLeft === 1 ? "day" : "days"}
+                </p>
+              </div>
+            )
+          })()}
         </div>
 
       </div>

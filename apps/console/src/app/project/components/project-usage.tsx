@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { BarChart3 } from "lucide-react"
+import { BarChart3, ArrowUpRight } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import axiosInstance from "@/lib/axios-instance"
@@ -19,7 +19,18 @@ interface UsageData {
     storage_bytes?: number
     bandwidth_bytes?: number
     databases?: number
+    egress_bytes?: number
   }
+  egress_bytes?: {
+    value: number
+    limit: number
+  }
+}
+
+interface EgressBreakdown {
+  endpoint: string
+  bytes: number
+  count: number
 }
 
 function UsageBar({ label, used, total, unit }: { label: string; used: number; total: number; unit: string }) {
@@ -49,23 +60,44 @@ function UsageBar({ label, used, total, unit }: { label: string; used: number; t
 
 export function ProjectUsage({ projectId }: { projectId: string }) {
   const [usage, setUsage] = useState<UsageData | null>(null)
+  const [egressBreakdown, setEgressBreakdown] = useState<EgressBreakdown[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetchUsage()
+    fetchEgressBreakdown()
   }, [projectId])
 
   const fetchUsage = async () => {
     try {
       const response = await axiosInstance.auth.get(`/projects/${projectId}/usage`)
       if (response.data.success) {
-        setUsage(response.data.data || null)
+        setUsage(response.data.data?.usage || null)
       }
     } catch (error) {
       console.error("Failed to fetch usage:", error)
     } finally {
       setLoading(false)
     }
+  }
+
+  const fetchEgressBreakdown = async () => {
+    try {
+      const response = await axiosInstance.auth.get(`/projects/${projectId}/egress-breakdown`)
+      if (response.data.success) {
+        setEgressBreakdown(response.data.data?.breakdown || [])
+      }
+    } catch (error) {
+      console.error("Failed to fetch egress breakdown:", error)
+    }
+  }
+
+  const formatBytes = (bytes: number): string => {
+    if (bytes === 0) return "0 B"
+    const k = 1024
+    const sizes = ["B", "KB", "MB", "GB", "TB"]
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`
   }
 
   if (loading) {
@@ -97,7 +129,15 @@ export function ProjectUsage({ projectId }: { projectId: string }) {
   }
 
   const storageUsedGB = (usage.usage?.storage_bytes || 0) / (1024 * 1024 * 1024)
-  const bandwidthUsedGB = (usage.usage?.bandwidth_bytes || 0) / (1024 * 1024 * 1024)
+  const egressUsedBytes = usage.egress_bytes?.value || 0
+  const egressLimitBytes = usage.egress_bytes?.limit || (100 * 1024 * 1024 * 1024)
+  const egressUsedGB = egressUsedBytes / (1024 * 1024 * 1024)
+  const egressLimitGB = egressLimitBytes / (1024 * 1024 * 1024)
+
+  // Calculate days until egress resets (1st of next month)
+  const now = new Date()
+  const nextReset = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+  const daysUntilReset = Math.ceil((nextReset.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
 
   return (
     <div>
@@ -157,18 +197,56 @@ export function ProjectUsage({ projectId }: { projectId: string }) {
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Bandwidth</CardTitle>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-sm font-medium">Egress (API Key Usage)</CardTitle>
+                <ArrowUpRight className="w-4 h-4 text-muted-foreground" />
+              </div>
+              <span className="text-xs text-muted-foreground">
+                Resets in {daysUntilReset} {daysUntilReset === 1 ? "day" : "days"}
+              </span>
+            </div>
           </CardHeader>
           <CardContent>
             <UsageBar
-              label="Bandwidth Used"
-              used={Number(bandwidthUsedGB.toFixed(2))}
-              total={usage.quotas?.bandwidth_gb || 0}
+              label="Bandwidth Out"
+              used={Number(egressUsedGB.toFixed(2))}
+              total={Number(egressLimitGB.toFixed(0))}
               unit="GB"
             />
           </CardContent>
         </Card>
       </div>
+
+      {egressBreakdown.length > 0 && (
+        <Card className="mt-4">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium">Egress by Endpoint</CardTitle>
+            <p className="text-xs text-muted-foreground">Top endpoints by data transferred this month (API key requests only)</p>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-3">
+              {egressBreakdown.map((item, index) => (
+                <div key={index} className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <span className="text-muted-foreground font-mono text-xs truncate">
+                      {item.endpoint}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4 text-right">
+                    <span className="text-muted-foreground text-xs">
+                      {item.count.toLocaleString()} requests
+                    </span>
+                    <span className="font-medium text-foreground min-w-[80px]">
+                      {formatBytes(item.bytes)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

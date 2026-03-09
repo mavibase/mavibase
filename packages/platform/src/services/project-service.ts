@@ -1,5 +1,4 @@
 import { pool } from "../config/database"
-import { pool as databasePool } from "@mavibase/database"
 import { nanoid } from "nanoid"
 import { checkTeamQuota } from "./team-service"
 import type { PoolClient } from "pg"
@@ -137,33 +136,7 @@ export const updateProject = async (
 }
 
 export const deleteProject = async (projectId: string): Promise<void> => {
-  const client = await pool.connect()
-
-  try {
-    await client.query("BEGIN")
-
-    // Mark project as deleted in the control plane
-    await client.query(`UPDATE projects SET status = 'deleted', updated_at = NOW() WHERE id = $1`, [projectId])
-
-    // Hard-delete all databases owned by this project in the data plane.
-    // This relies on databases.project_id having been set for all databases.
-    await databasePool.query(
-      `DELETE FROM databases 
-       WHERE project_id = $1`,
-      [projectId],
-    )
-
-    // project_usage rows are already ON DELETE CASCADE via project_id FK,
-    // but in case any legacy rows exist with dangling references, clean them up.
-    await client.query(`DELETE FROM project_usage WHERE project_id = $1`, [projectId])
-
-    await client.query("COMMIT")
-  } catch (error) {
-    await client.query("ROLLBACK")
-    throw error
-  } finally {
-    client.release()
-  }
+  await pool.query(`UPDATE projects SET status = 'deleted', updated_at = NOW() WHERE id = $1`, [projectId])
 }
 
 export const verifyProjectAccess = async (projectId: string, userId: string): Promise<boolean> => {
@@ -210,7 +183,20 @@ export const getProjectUsage = async (projectId: string) => {
     [projectId],
   )
 
-  return usageResult.rows.reduce((acc: any, row: any) => {
+  // Get team quotas for this project
+  const teamQuotaResult = await pool.query(
+    `SELECT 
+       t.quota_bandwidth_gb,
+       t.current_egress_bytes
+     FROM teams t
+     JOIN projects p ON p.team_id = t.id
+     WHERE p.id = $1`,
+    [projectId],
+  )
+
+  const teamQuotas = teamQuotaResult.rows[0] || {}
+
+  const usage = usageResult.rows.reduce((acc: any, row: any) => {
     acc[row.metric] = {
       value: row.value,
       limit: row.quota_limit,
@@ -219,6 +205,62 @@ export const getProjectUsage = async (projectId: string) => {
     }
     return acc
   }, {})
+
+  // Egress limit from environment variable (defaults to 100GB)
+  const egressLimitGB = parseInt(process.env.EGRESS_LIMIT_PER_PROJECT || "100", 10)
+  const egressLimitBytes = egressLimitGB * 1024 * 1024 * 1024
+
+  // Get current egress from egress_events table
+  const currentYear = new Date().getFullYear()
+  const currentMonth = new Date().getMonth() + 1
+  const egressResult = await pool.query(
+    `SELECT COALESCE(SUM(bytes), 0) as total_bytes
+     FROM egress_events
+     WHERE project_id = $1
+       AND year = $2
+       AND month = $3`,
+    [projectId, currentYear, currentMonth],
+  )
+  const currentEgressBytes = parseInt(egressResult.rows[0]?.total_bytes || "0")
+
+  // Add egress data with limit from environment variable
+  usage.egress_bytes = {
+    value: currentEgressBytes,
+    limit: egressLimitBytes,
+    updated_at: new Date(),
+    reset_at: null,
+  }
+
+  return usage
+}
+
+/**
+ * Get egress breakdown by endpoint for a project
+ */
+export const getProjectEgressBreakdown = async (projectId: string) => {
+  const currentYear = new Date().getFullYear()
+  const currentMonth = new Date().getMonth() + 1
+
+  const result = await pool.query(
+    `SELECT 
+       endpoint,
+       SUM(bytes) as total_bytes,
+       COUNT(*) as request_count
+     FROM egress_events
+     WHERE project_id = $1
+       AND year = $2
+       AND month = $3
+     GROUP BY endpoint
+     ORDER BY total_bytes DESC
+     LIMIT 10`,
+    [projectId, currentYear, currentMonth],
+  )
+
+  return result.rows.map(row => ({
+    endpoint: row.endpoint,
+    bytes: parseInt(row.total_bytes),
+    count: parseInt(row.request_count),
+  }))
 }
 
 

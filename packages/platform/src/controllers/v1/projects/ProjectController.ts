@@ -341,3 +341,34 @@ export const getProjectTimeSeries = async (req: Request, res: Response) => {
     })
   }
 }
+
+export const getProjectEgressBreakdown = async (req: Request, res: Response) => {
+  try {
+    const { projectId } = req.params
+
+    // Verify access
+    const hasAccess = await projectService.verifyProjectAccess(projectId, req.userId!)
+    if (!hasAccess) {
+      return res.status(403).json({
+        error: {
+          code: "FORBIDDEN",
+          message: "You do not have access to this project",
+        },
+      })
+    }
+
+    const breakdown = await projectService.getProjectEgressBreakdown(projectId)
+
+    res.json({
+      success: true,
+      data: { breakdown },
+    })
+  } catch (error: any) {
+    res.status(500).json({
+      error: {
+        code: "GET_EGRESS_BREAKDOWN_FAILED",
+        message: error.message,
+      },
+    })
+  }
+}

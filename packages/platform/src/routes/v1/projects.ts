@@ -11,6 +11,7 @@ import {
   getProjectUsage,
   getProjectActivity,
   getProjectTimeSeries,
+  getProjectEgressBreakdown,
 } from "../../controllers"
 import projectRoleRoutes from "./project-roles"
 
@@ -29,6 +30,7 @@ router.get("/:projectId/stats", getProjectStats)
 router.get("/:projectId/usage", getProjectUsage)
 router.get("/:projectId/activity", getProjectActivity)
 router.get("/:projectId/time-series", getProjectTimeSeries)
+router.get("/:projectId/egress-breakdown", getProjectEgressBreakdown)
 
 // List projects for a team
 router.get("/team/:teamId", requireTeamMembership, listTeamProjects)
