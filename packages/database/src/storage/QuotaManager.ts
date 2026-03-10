@@ -58,6 +58,18 @@ export class QuotaManager {
 
     const { max_collections, current_collections } = result.rows[0]
 
+    // Security fix: Ensure quotas are positive (prevent negative value bypass)
+    if (max_collections <= 0 || current_collections < 0) {
+      throw new AppError(
+        500,
+        "INVALID_QUOTA",
+        "Database quota configuration is invalid",
+        {
+          hint: "Contact support to fix quota settings",
+        },
+      )
+    }
+
     if (current_collections >= max_collections) {
       throw new AppError(
         429,

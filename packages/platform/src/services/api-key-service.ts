@@ -35,6 +35,14 @@ interface APIKey {
 export const createAPIKey = async (params: CreateAPIKeyParams) => {
   const { projectId, userId, name, keyType = "secret", scopes, expiresAt } = params
 
+  // Validate expiry date is in the future (security fix for issue #11)
+  if (expiresAt && expiresAt <= new Date()) {
+    const error: any = new Error("API key expiry time must be in the future")
+    error.statusCode = 400
+    error.code = "INVALID_EXPIRY_TIME"
+    throw error
+  }
+
   // Generate API key in format: {type}_{env}_{random}
   const keyId = nanoid(32)
   const prefix = keyType === "public" ? "pk" : keyType === "service" ? "svk" : "sk"

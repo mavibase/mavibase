@@ -15,7 +15,17 @@ export class DocumentRepository {
    * Cleanup old versions to maintain version limit per document
    */
   private async cleanupOldVersions(documentId: string, collectionId: string, tx?: PoolClient): Promise<void> {
-    if (!this.versioningEnabled || this.versionLimit <= 0) {
+    if (!this.versioningEnabled) {
+      return
+    }
+
+    // Security fix: Prevent accidental deletion of all versions
+    if (this.versionLimit <= 0) {
+      logger.warn("Version limit is 0 or negative, disabling version cleanup", {
+        versionLimit: this.versionLimit,
+        documentId,
+        collectionId,
+      })
       return
     }
 

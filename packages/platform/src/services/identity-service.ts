@@ -249,8 +249,16 @@ export const validateUserIdentity = async (
 
 /**
  * Validates API key and returns service identity context
+ * 
+ * SECURITY FIX (v0.1.2):
+ * - If X-Project-Id header is provided, validates it matches the API key's project
+ * - Prevents using an API key from one project to access another project
+ * - Returns 403 if requested project doesn't match API key's project
  */
-export const validateServiceIdentity = async (apiKey: string): Promise<IdentityContext | null> => {
+export const validateServiceIdentity = async (
+  apiKey: string,
+  options?: IdentityOptions,
+): Promise<IdentityContext | null> => {
   // Verify API key
   const verification = await apiKeyService.verifyAPIKey(apiKey)
 
@@ -259,6 +267,7 @@ export const validateServiceIdentity = async (apiKey: string): Promise<IdentityC
   }
 
   const apiKeyRecord = verification.apiKey
+  const { requestedProjectId } = options || {}
 
   // Get project and team info
   const result = await pool.query(
@@ -281,6 +290,17 @@ export const validateServiceIdentity = async (apiKey: string): Promise<IdentityC
   }
 
   const row = result.rows[0]
+
+  // SECURITY FIX: If a specific project was requested, validate it matches the API key's project
+  // This prevents using an API key from one project to access a different project
+  if (requestedProjectId && row.project_id !== requestedProjectId) {
+    const error: any = new Error(
+      "API key does not belong to the requested project. API keys can only access their assigned project.",
+    )
+    error.statusCode = 403
+    error.code = "API_KEY_PROJECT_MISMATCH"
+    throw error
+  }
 
   return {
     type: "service",
@@ -309,8 +329,9 @@ export const validateIdentity = async (
     return validateUserIdentity(token, options)
   }
 
-  // Otherwise treat as API key (API keys already have project scope baked in)
-  return validateServiceIdentity(authorization)
+  // Otherwise treat as API key
+  // Pass options to validate project scope (security fix v0.1.2)
+  return validateServiceIdentity(authorization, options)
 }
 
 /**

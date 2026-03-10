@@ -40,6 +40,7 @@ interface UsageStats {
   api_keys: number
   egress_bytes: number
   egress_limit_bytes: number
+  egress_reset_at: string | null
 }
 
 interface TimeSeriesPoint {
@@ -227,9 +228,10 @@ export function OverviewContent() {
         api_keys:           Number(s.api_keys_count ?? 0),
         egress_bytes:       Number(u.egress_bytes?.value ?? 0),
         egress_limit_bytes: Number(u.egress_bytes?.limit ?? 100 * 1024 * 1024 * 1024),
+        egress_reset_at:    u.egress_bytes?.reset_at ?? null,
       })
     } catch {
-      setUsage({ databases: 0, collections: 0, documents: 0, storage_bytes: 0, api_keys: 0 })
+      setUsage({ databases: 0, collections: 0, documents: 0, storage_bytes: 0, api_keys: 0, egress_bytes: 0, egress_limit_bytes: 100 * 1024 * 1024 * 1024, egress_reset_at: null })
     } finally {
       setLoadingUsage(false)
     }
@@ -403,8 +405,11 @@ export function OverviewContent() {
             const limit = usage?.egress_limit_bytes ?? (100 * 1024 * 1024 * 1024)
             const pct = limit > 0 ? Math.min((used / limit) * 100, 100) : 0
             const now = new Date()
-            const nextReset = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-            const daysLeft = Math.ceil((nextReset.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+            // Use reset_at from backend if available, otherwise fallback to 30 days from now
+            const resetAt = usage?.egress_reset_at ? new Date(usage.egress_reset_at) : null
+              const daysLeft = resetAt
+  ? Math.max(0, Math.floor((resetAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+  : 30
             return (
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between text-xs text-muted-foreground">

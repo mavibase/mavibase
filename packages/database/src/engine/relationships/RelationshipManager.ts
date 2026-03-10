@@ -1,6 +1,7 @@
 import { pool } from "@mavibase/database/config/database"
 import { AppError } from "@mavibase/core"
 import { generateId } from "@mavibase/database/utils/id-generator"
+import { logger } from "@mavibase/database/utils/logger"
 import type { Relationship, RelationshipConfig } from "../../types/relationship"
 
 export type RelationshipType = 'oneToOne' | 'oneToMany' | 'manyToOne' | 'manyToMany';
@@ -381,8 +382,8 @@ export class RelationshipManager {
         if (!value) continue
 
         if (config.type === "oneToOne" || config.type === "manyToOne") {
-          // Fetch single related document
-          const related = await this.fetchRelatedDocument(value, targetCollectionId)
+          // Fetch single related document (with project scoping)
+          const related = await this.fetchRelatedDocument(value, targetCollectionId, projectId)
           if (related) {
             if (doc.data) {
               doc.data[field.name] = related
@@ -391,8 +392,8 @@ export class RelationshipManager {
             }
           }
         } else if (config.type === "oneToMany" || config.type === "manyToMany") {
-          // Fetch multiple related documents
-          const related = await this.fetchRelatedDocuments(value, targetCollectionId)
+          // Fetch multiple related documents (with project scoping and limits)
+          const related = await this.fetchRelatedDocuments(value, targetCollectionId, projectId)
           if (doc.data) {
             doc.data[field.name] = related
           } else {
@@ -410,16 +411,20 @@ export class RelationshipManager {
    */
   private async fetchRelatedDocument(
     documentId: string,
-    collectionId: string
+    collectionId: string,
+    projectId: string
   ): Promise<any | null> {
     
     const result = await pool.query(
-      `SELECT id, data, created_at, updated_at, version 
-       FROM documents 
-       WHERE id = $1 
-       AND collection_id = $2 
-       AND deleted_at IS NULL`,
-      [documentId, collectionId]
+      `SELECT d.id, d.data, d.created_at, d.updated_at, d.version
+       FROM documents d
+       JOIN collections c ON d.collection_id = c.id
+       JOIN databases db ON c.database_id = db.id
+       WHERE d.id = $1 
+       AND d.collection_id = $2 
+       AND db.project_id = $3
+       AND d.deleted_at IS NULL`,
+      [documentId, collectionId, projectId]
     )
 
     if (result.rows.length === 0) return null
@@ -439,20 +444,37 @@ export class RelationshipManager {
    */
   private async fetchRelatedDocuments(
     documentIds: string[],
-    collectionId: string
+    collectionId: string,
+    projectId: string,
+    maxResults: number = 100
   ): Promise<any[]> {
     
     if (!Array.isArray(documentIds) || documentIds.length === 0) {
       return []
     }
 
+    // Limit number of IDs to fetch to prevent unbounded queries
+    const limitedIds = documentIds.slice(0, maxResults)
+    
+    if (documentIds.length > maxResults) {
+      logger.warn("Relationship population truncated", {
+        requested: documentIds.length,
+        limit: maxResults,
+        collectionId,
+      })
+    }
+
     const result = await pool.query(
-      `SELECT id, data, created_at, updated_at, version 
-       FROM documents 
-       WHERE id = ANY($1) 
-       AND collection_id = $2 
-       AND deleted_at IS NULL`,
-      [documentIds, collectionId]
+      `SELECT d.id, d.data, d.created_at, d.updated_at, d.version
+       FROM documents d
+       JOIN collections c ON d.collection_id = c.id
+       JOIN databases db ON c.database_id = db.id
+       WHERE d.id = ANY($1) 
+       AND d.collection_id = $2 
+       AND db.project_id = $3
+       AND d.deleted_at IS NULL
+       LIMIT $4`,
+      [limitedIds, collectionId, projectId, maxResults]
     )
 
     return result.rows.map(doc => ({
@@ -473,27 +495,32 @@ export class RelationshipManager {
     projectId: string
   ): Promise<void> {
     
-    // Find all relationships where this collection is the target
+    // Find all relationships where this collection is the target (with project scoping)
     const relationships = await pool.query(
-      `SELECT * FROM relationships 
-       WHERE target_collection_id = $1`,
-      [collectionId]
+      `SELECT r.* FROM relationships r
+       JOIN collections c ON r.source_collection_id = c.id
+       JOIN databases d ON c.database_id = d.id
+       WHERE r.target_collection_id = $1 
+       AND d.project_id = $2
+       AND c.deleted_at IS NULL`,
+      [collectionId, projectId]
     )
 
     for (const rel of relationships.rows) {
       const onDelete: OnDeleteAction = rel.on_delete
 
       if (onDelete === "restrict") {
-        // Check if any documents reference this one
+        // Check if any documents reference this one (using parameterized field name)
         const references = await pool.query(
           `SELECT id FROM documents 
            WHERE collection_id = $1 
-           AND (data->>'${rel.source_attribute}' = $2 
-                OR data->'${rel.source_attribute}' @> $3)
+           AND ((data->>$3)::text = $2 
+                OR data->'$3' @> $4)
            AND deleted_at IS NULL`,
           [
             rel.source_collection_id,
             documentId,
+            rel.source_attribute,
             JSON.stringify([documentId])
           ]
         )
@@ -508,35 +535,37 @@ export class RelationshipManager {
         }
 
       } else if (onDelete === "cascade") {
-        // Delete all documents that reference this one
+        // Delete all documents that reference this one (using parameterized field name)
         await pool.query(
           `UPDATE documents 
            SET deleted_at = CURRENT_TIMESTAMP 
            WHERE collection_id = $1 
-           AND (data->>'${rel.source_attribute}' = $2 
-                OR data->'${rel.source_attribute}' @> $3)
+           AND ((data->>$3)::text = $2 
+                OR data->'$3' @> $4)
            AND deleted_at IS NULL`,
           [
             rel.source_collection_id,
             documentId,
+            rel.source_attribute,
             JSON.stringify([documentId])
           ]
         )
 
       } else if (onDelete === "setNull") {
-        // Set relationship field to null
+        // Set relationship field to null (using jsonb_set with parameterized field name)
         await pool.query(
           `UPDATE documents 
-           SET data = data - '${rel.source_attribute}',
+           SET data = data #- ARRAY[$3],
                updated_at = CURRENT_TIMESTAMP,
                version = version + 1
            WHERE collection_id = $1 
-           AND (data->>'${rel.source_attribute}' = $2 
-                OR data->'${rel.source_attribute}' @> $3)
+           AND ((data->>$3)::text = $2 
+                OR data->'$3' @> $4)
            AND deleted_at IS NULL`,
           [
             rel.source_collection_id,
             documentId,
+            rel.source_attribute,
             JSON.stringify([documentId])
           ]
         )
@@ -561,7 +590,7 @@ export class RelationshipManager {
     )
 
     if (relationship.rows.length === 0) {
-      console.log(`[Relationship] No relationship found for ${collectionId}:${attributeName}`)
+      logger.debug("Relationship not found", { collectionId, attributeName })
       return  // No relationship to delete (might have been cleaned up already)
     }
 
@@ -574,9 +603,16 @@ export class RelationshipManager {
           rel.target_collection_id,
           rel.target_attribute
         )
-        console.log(`[Relationship] Removed two-way attribute '${rel.target_attribute}' from target collection`)
+        logger.debug("Removed two-way attribute", {
+          attributeName: rel.target_attribute,
+          collectionId: rel.target_collection_id,
+        })
       } catch (error) {
-        console.error(`[Relationship] Failed to remove two-way attribute:`, error)
+        logger.warn("Failed to remove two-way attribute", {
+          attributeName: rel.target_attribute,
+          collectionId: rel.target_collection_id,
+          error: error instanceof Error ? error.message : String(error),
+        })
         // Continue anyway - metadata will still be cleaned up
       }
     }
@@ -588,9 +624,16 @@ export class RelationshipManager {
           rel.source_collection_id,
           rel.source_attribute
         )
-        console.log(`[Relationship] Removed two-way attribute '${rel.source_attribute}' from source collection`)
+        logger.debug("Removed two-way attribute", {
+          attributeName: rel.source_attribute,
+          collectionId: rel.source_collection_id,
+        })
       } catch (error) {
-        console.error(`[Relationship] Failed to remove two-way attribute:`, error)
+        logger.warn("Failed to remove two-way attribute", {
+          attributeName: rel.source_attribute,
+          collectionId: rel.source_collection_id,
+          error: error instanceof Error ? error.message : String(error),
+        })
         // Continue anyway - metadata will still be cleaned up
       }
     }
@@ -601,7 +644,7 @@ export class RelationshipManager {
       [rel.id]
     )
     
-    console.log(`[Relationship] Deleted relationship metadata: ${rel.id}`)
+    logger.debug("Deleted relationship metadata", { relationshipId: rel.id })
   }
 
   /**
@@ -619,7 +662,7 @@ export class RelationshipManager {
     )
 
     if (schemaResult.rows.length === 0) {
-      console.log(`[Relationship] No schema found for collection ${collectionId}`)
+      logger.debug("No schema found for collection", { collectionId })
       return  // No schema, nothing to remove
     }
 
@@ -629,7 +672,7 @@ export class RelationshipManager {
     const fieldExisted = schema.fields?.some((f: any) => f.name === attributeName)
     
     if (!fieldExisted) {
-      console.log(`[Relationship] Attribute '${attributeName}' not found in schema (already removed)`)
+      logger.debug("Attribute not found in schema", { attributeName, collectionId })
       return  // Attribute doesn't exist, nothing to remove
     }
 

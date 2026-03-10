@@ -24,6 +24,12 @@ interface UsageData {
   egress_bytes?: {
     value: number
     limit: number
+    reset_at?: string | null
+  }
+  api_requests?: {
+    value: number
+    limit: number
+    reset_at?: string | null
   }
 }
 
@@ -134,10 +140,18 @@ export function ProjectUsage({ projectId }: { projectId: string }) {
   const egressUsedGB = egressUsedBytes / (1024 * 1024 * 1024)
   const egressLimitGB = egressLimitBytes / (1024 * 1024 * 1024)
 
-  // Calculate days until egress resets (1st of next month)
+  // Calculate days until egress resets using reset_at from backend
   const now = new Date()
-  const nextReset = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-  const daysUntilReset = Math.ceil((nextReset.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+  const egressResetAt = usage.egress_bytes?.reset_at ? new Date(usage.egress_bytes.reset_at) : null
+const daysUntilEgressReset = egressResetAt
+  ? Math.max(0, Math.floor((egressResetAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+  : 30
+  
+  // Calculate days until API requests reset using reset_at from backend
+  const apiResetAt = usage.api_requests?.reset_at ? new Date(usage.api_requests.reset_at) : null
+  const daysUntilApiReset = apiResetAt
+    ? Math.max(0, Math.ceil((apiResetAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+    : 30
 
   return (
     <div>
@@ -155,7 +169,12 @@ export function ProjectUsage({ projectId }: { projectId: string }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">API Requests</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium">API Requests</CardTitle>
+              <span className="text-xs text-muted-foreground">
+                Resets in {daysUntilApiReset} {daysUntilApiReset === 1 ? "day" : "days"}
+              </span>
+            </div>
           </CardHeader>
           <CardContent>
             <UsageBar
@@ -203,7 +222,7 @@ export function ProjectUsage({ projectId }: { projectId: string }) {
                 <ArrowUpRight className="w-4 h-4 text-muted-foreground" />
               </div>
               <span className="text-xs text-muted-foreground">
-                Resets in {daysUntilReset} {daysUntilReset === 1 ? "day" : "days"}
+                Resets in {daysUntilEgressReset} {daysUntilEgressReset === 1 ? "day" : "days"}
               </span>
             </div>
           </CardHeader>

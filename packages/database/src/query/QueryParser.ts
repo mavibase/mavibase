@@ -6,6 +6,54 @@ export class QueryParser {
   private static readonly MAX_FILTERS = 50
   private static readonly MAX_REGEX_LENGTH = 200
   private static readonly MAX_QUERY_DEPTH = 5
+  
+  /**
+   * Dangerous regex patterns that can cause ReDoS (Regular Expression Denial of Service)
+   * These patterns should be blocked to prevent performance attacks
+   */
+  private static readonly DANGEROUS_PATTERNS = [
+    /\(\w\+\)\+/,           // (a+)+
+    /\(\w\*\)\+/,           // (a*)+
+    /\(\w\+\)\*/,           // (a+)*
+    /\(\w\*\)\*/,           // (a*)*
+    /\(\w\|\w\)\+/,         // (a|a)+
+    /\(\w\|\w\)\*/,         // (a|a)*
+    /\(\.\*\)\+/,           // (.*)+
+    /\(\.\*\)\*/,           // (.*)*
+    /\(\.\+\)\+/,           // (.+)+
+    /\(\.\+\)\*/,           // (.+)*
+  ]
+
+  /**
+   * Check if regex pattern is dangerous (ReDoS patterns)
+   */
+  private static isDangerousPattern(pattern: string): boolean {
+    if (typeof pattern !== "string") return false
+    
+    try {
+      // Check against known dangerous patterns
+      for (const dangerous of QueryParser.DANGEROUS_PATTERNS) {
+        if (dangerous.test(pattern)) {
+          return true
+        }
+      }
+      
+      // Try to compile the pattern - if it takes too long, it's dangerous
+      // Set a timeout of 100ms for pattern validation
+      const startTime = Date.now()
+      new RegExp(pattern)
+      const elapsed = Date.now() - startTime
+      
+      if (elapsed > 100) {
+        return true // Pattern took too long to compile
+      }
+    } catch (error) {
+      // Invalid regex - reject it
+      return true
+    }
+    
+    return false
+  }
 
   parse(queries?: string | string[]): QueryOperator[] {
     if (!queries) {
@@ -112,16 +160,30 @@ export class QueryParser {
               value: values[0],
             }
           case "contains":
-            if (typeof values[0] === "string" && values[0].length > QueryParser.MAX_REGEX_LENGTH) {
-              throw new AppError(
-                400,
-                "PATTERN_TOO_LONG",
-                `Search pattern exceeds maximum length of ${QueryParser.MAX_REGEX_LENGTH} characters`,
-                {
-                  provided: values[0].length,
-                  maximum: QueryParser.MAX_REGEX_LENGTH,
-                },
-              )
+            if (typeof values[0] === "string") {
+              // Check length
+              if (values[0].length > QueryParser.MAX_REGEX_LENGTH) {
+                throw new AppError(
+                  400,
+                  "PATTERN_TOO_LONG",
+                  `Search pattern exceeds maximum length of ${QueryParser.MAX_REGEX_LENGTH} characters`,
+                  {
+                    provided: values[0].length,
+                    maximum: QueryParser.MAX_REGEX_LENGTH,
+                  },
+                )
+              }
+              // Check for dangerous regex patterns (ReDoS prevention)
+              if (QueryParser.isDangerousPattern(values[0])) {
+                throw new AppError(
+                  400,
+                  "DANGEROUS_PATTERN",
+                  "Search pattern contains potentially dangerous or inefficient regex",
+                  {
+                    hint: "Avoid patterns with nested quantifiers like (a+)+, (a*)+, etc.",
+                  },
+                )
+              }
             }
             return {
               type: "contains",
@@ -129,12 +191,21 @@ export class QueryParser {
               value: values[0],
             }
           case "startsWith":
-            if (typeof values[0] === "string" && values[0].length > QueryParser.MAX_REGEX_LENGTH) {
-              throw new AppError(
-                400,
-                "PATTERN_TOO_LONG",
-                `Search pattern exceeds maximum length of ${QueryParser.MAX_REGEX_LENGTH} characters`,
-              )
+            if (typeof values[0] === "string") {
+              if (values[0].length > QueryParser.MAX_REGEX_LENGTH) {
+                throw new AppError(
+                  400,
+                  "PATTERN_TOO_LONG",
+                  `Search pattern exceeds maximum length of ${QueryParser.MAX_REGEX_LENGTH} characters`,
+                )
+              }
+              if (QueryParser.isDangerousPattern(values[0])) {
+                throw new AppError(
+                  400,
+                  "DANGEROUS_PATTERN",
+                  "Search pattern contains potentially dangerous or inefficient regex",
+                )
+              }
             }
             return {
               type: "startsWith",
@@ -142,12 +213,21 @@ export class QueryParser {
               value: values[0],
             }
           case "endsWith":
-            if (typeof values[0] === "string" && values[0].length > QueryParser.MAX_REGEX_LENGTH) {
-              throw new AppError(
-                400,
-                "PATTERN_TOO_LONG",
-                `Search pattern exceeds maximum length of ${QueryParser.MAX_REGEX_LENGTH} characters`,
-              )
+            if (typeof values[0] === "string") {
+              if (values[0].length > QueryParser.MAX_REGEX_LENGTH) {
+                throw new AppError(
+                  400,
+                  "PATTERN_TOO_LONG",
+                  `Search pattern exceeds maximum length of ${QueryParser.MAX_REGEX_LENGTH} characters`,
+                )
+              }
+              if (QueryParser.isDangerousPattern(values[0])) {
+                throw new AppError(
+                  400,
+                  "DANGEROUS_PATTERN",
+                  "Search pattern contains potentially dangerous or inefficient regex",
+                )
+              }
             }
             return {
               type: "endsWith",
@@ -274,7 +354,7 @@ export class QueryParser {
 
   private parseStringQuery(queryString: string): QueryOperator | null {
     // Parse equal("field", "value")
-    const equalMatch = queryString.match(/equal$$"([^"]+)",\s*"([^"]*)"$$/)
+    const equalMatch = queryString.match(/equal\("([^"]+)",\s*"([^"]*)"\)/)
     if (equalMatch) {
       return {
         type: "equal",
@@ -284,7 +364,7 @@ export class QueryParser {
     }
 
     // Parse equal("field", number)
-    const equalNumberMatch = queryString.match(/equal$$"([^"]+)",\s*(\d+(?:\.\d+)?)$$/)
+    const equalNumberMatch = queryString.match(/equal\("([^"]+)",\s*(\d+(?:\.\d+)?)\)/)
     if (equalNumberMatch) {
       return {
         type: "equal",
@@ -294,7 +374,7 @@ export class QueryParser {
     }
 
     // Parse equal("field", boolean)
-    const equalBoolMatch = queryString.match(/equal$$"([^"]+)",\s*(true|false)$$/)
+    const equalBoolMatch = queryString.match(/equal\("([^"]+)",\s*(true|false)\)/)
     if (equalBoolMatch) {
       return {
         type: "equal",
@@ -303,8 +383,67 @@ export class QueryParser {
       }
     }
 
+    // Parse contains("field", "pattern") - with ReDoS validation
+    const containsMatch = queryString.match(/contains\("([^"]+)",\s*"([^"]*)"\)/)
+    if (containsMatch) {
+      const pattern = containsMatch[2]
+      if (pattern.length > QueryParser.MAX_REGEX_LENGTH) {
+        throw new AppError(400, "PATTERN_TOO_LONG", 
+          `Search pattern exceeds maximum length of ${QueryParser.MAX_REGEX_LENGTH} characters`,
+          { provided: pattern.length, maximum: QueryParser.MAX_REGEX_LENGTH })
+      }
+      if (QueryParser.isDangerousPattern(pattern)) {
+        throw new AppError(400, "DANGEROUS_PATTERN", 
+          "Search pattern contains potentially dangerous or inefficient regex",
+          { hint: "Avoid patterns with nested quantifiers like (a+)+, (a*)+, etc." })
+      }
+      return {
+        type: "contains",
+        field: containsMatch[1],
+        value: pattern,
+      }
+    }
+
+    // Parse startsWith("field", "pattern") - with ReDoS validation
+    const startsWithMatch = queryString.match(/startsWith\("([^"]+)",\s*"([^"]*)"\)/)
+    if (startsWithMatch) {
+      const pattern = startsWithMatch[2]
+      if (pattern.length > QueryParser.MAX_REGEX_LENGTH) {
+        throw new AppError(400, "PATTERN_TOO_LONG", 
+          `Search pattern exceeds maximum length of ${QueryParser.MAX_REGEX_LENGTH} characters`)
+      }
+      if (QueryParser.isDangerousPattern(pattern)) {
+        throw new AppError(400, "DANGEROUS_PATTERN", 
+          "Search pattern contains potentially dangerous or inefficient regex")
+      }
+      return {
+        type: "startsWith",
+        field: startsWithMatch[1],
+        value: pattern,
+      }
+    }
+
+    // Parse endsWith("field", "pattern") - with ReDoS validation
+    const endsWithMatch = queryString.match(/endsWith\("([^"]+)",\s*"([^"]*)"\)/)
+    if (endsWithMatch) {
+      const pattern = endsWithMatch[2]
+      if (pattern.length > QueryParser.MAX_REGEX_LENGTH) {
+        throw new AppError(400, "PATTERN_TOO_LONG", 
+          `Search pattern exceeds maximum length of ${QueryParser.MAX_REGEX_LENGTH} characters`)
+      }
+      if (QueryParser.isDangerousPattern(pattern)) {
+        throw new AppError(400, "DANGEROUS_PATTERN", 
+          "Search pattern contains potentially dangerous or inefficient regex")
+      }
+      return {
+        type: "endsWith",
+        field: endsWithMatch[1],
+        value: pattern,
+      }
+    }
+
     // Parse limit(n)
-    const limitMatch = queryString.match(/limit$$(\d+)$$/)
+    const limitMatch = queryString.match(/limit\((\d+)\)/)
     if (limitMatch) {
       return {
         type: "limit",
@@ -313,7 +452,7 @@ export class QueryParser {
     }
 
     // Parse offset(n)
-    const offsetMatch = queryString.match(/offset$$(\d+)$$/)
+    const offsetMatch = queryString.match(/offset\((\d+)\)/)
     if (offsetMatch) {
       return {
         type: "offset",
@@ -322,7 +461,7 @@ export class QueryParser {
     }
 
     // Parse orderBy("field", "direction")
-    const orderByMatch = queryString.match(/orderBy$$"([^"]+)",\s*"(asc|desc)"$$/)
+    const orderByMatch = queryString.match(/orderBy\("([^"]+)",\s*"(asc|desc)"\)/)
     if (orderByMatch) {
       return {
         type: "orderBy",

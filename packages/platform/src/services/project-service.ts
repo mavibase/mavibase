@@ -223,12 +223,31 @@ export const getProjectUsage = async (projectId: string) => {
   )
   const currentEgressBytes = parseInt(egressResult.rows[0]?.total_bytes || "0")
 
+  // Reset is simply created_at + 1 month, preserving exact time of creation
+  const projectResult = await pool.query(
+    `SELECT created_at FROM projects WHERE id = $1`,
+    [projectId],
+  )
+  const projectCreatedAt = projectResult.rows[0]?.created_at
+  let resetAt: Date | null = null
+
+  if (projectCreatedAt) {
+    const createdDate = new Date(projectCreatedAt)
+    resetAt = new Date(createdDate)
+    resetAt.setMonth(resetAt.getMonth() + 1)
+  }
+
   // Add egress data with limit from environment variable
   usage.egress_bytes = {
     value: currentEgressBytes,
     limit: egressLimitBytes,
     updated_at: new Date(),
-    reset_at: null,
+    reset_at: resetAt,
+  }
+
+  // Ensure api_requests also has reset_at if not already set
+  if (usage.api_requests && !usage.api_requests.reset_at) {
+    usage.api_requests.reset_at = resetAt
   }
 
   return usage

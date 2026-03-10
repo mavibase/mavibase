@@ -1,0 +1,185 @@
+# Egress Tracking
+
+## What is Egress?
+
+Egress refers to **outbound data transfer** - the data that flows FROM the Mavibase servers TO your application. Every time your application makes an API request and receives a response, the size of that response counts as egress.
+
+Egress is measured in **bytes** and is a key metric for billing and usage monitoring.
+
+---
+
+## How is Egress Calculated?
+
+Egress is calculated by measuring the **response body size** of each API request:
+
+1. When an API request is made with an API key, the middleware intercepts the response
+2. The response body is serialized to JSON
+3. The byte size of the serialized response is calculated using `Buffer.byteLength()`
+4. The egress event is recorded in the database with the byte count
+
+```
+Egress = Size of JSON response body in bytes
+```
+
+### Example
+
+If you request a document and the response is:
+```json
+{
+  "success": true,
+  "data": {
+    "id": "doc_123",
+    "name": "My Document",
+    "content": "Hello World"
+  }
+}
+```
+
+The egress for this request would be approximately **95 bytes**.
+
+---
+
+## What Requests Are Tracked?
+
+### Only API Key Requests
+
+Egress tracking **ONLY** applies to requests authenticated via **API keys** (server-side SDK, client SDK, or direct API calls).
+
+| Request Type | Tracked? |
+|--------------|----------|
+| API Key (Server SDK) | Yes |
+| API Key (Client SDK) | Yes |
+| Console Dashboard (JWT) | No |
+| Internal/Admin requests | No |
+
+### Why Only API Keys?
+
+- API key requests represent **production application traffic** that scales with your users
+- Console/dashboard usage is minimal and absorbed as platform overhead
+- This matches industry standards (Appwrite, Supabase, Firebase)
+
+---
+
+## Affected Service: Database API
+
+Egress is tracked on the **Database API** service (`packages/api`), which handles all data operations.
+
+### Tracked Operations
+
+All **read operations** (GET requests) that return data are tracked:
+
+| Category | Endpoints | Description |
+|----------|-----------|-------------|
+| **Databases** | `GET /databases`, `GET /databases/:id` | Listing and retrieving database metadata |
+| **Collections** | `GET /collections`, `GET /collections/:id` | Listing and retrieving collection schemas |
+| **Documents** | `GET /documents`, `GET /documents/:id` | Listing and retrieving document data |
+| **Attributes** | `GET /collections/:id/attributes` | Retrieving collection attribute definitions |
+| **Indexes** | `GET /indexes`, `GET /indexes/:id` | Listing and retrieving index configurations |
+| **Versions** | `GET /documents/:id/versions` | Retrieving document version history |
+| **Relationships** | `GET /relationships` | Retrieving related documents |
+| **Roles** | `GET /roles`, `GET /roles/:id` | Listing and retrieving role definitions |
+| **Transactions** | Transaction responses | Data returned from transaction operations |
+
+### Write Operations
+
+Write operations (POST, PUT, PATCH, DELETE) are also tracked since they return response data, but typically have smaller response sizes compared to read operations.
+
+---
+
+## Egress Limits
+
+### Configuration
+
+Egress limits are configured via environment variable:
+
+```env
+EGRESS_LIMIT_PER_PROJECT=100
+```
+
+The value is in **gigabytes (GB)**. Default is `100` GB if not set.
+
+### Limit Scope
+
+- Limits are applied **per project**
+- Limits reset **monthly** (based on calendar month)
+
+### When Limit is Exceeded
+
+When a project exceeds its egress limit, API requests will receive:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "EGRESS_LIMIT",
+    "message": "Egress limit of 100GB has been reached for this billing period. Please upgrade your plan or wait for the limit to reset."
+  }
+}
+```
+
+HTTP Status: `429 Too Many Requests`
+
+---
+
+## Viewing Egress Usage
+
+### Console Dashboard
+
+Egress usage is displayed in the **Project Usage** section of the console dashboard:
+
+- **Total egress** for the current billing period
+- **Egress breakdown by endpoint** showing top endpoints by data transferred
+- **Progress bar** showing usage against the limit
+
+### API
+
+You can retrieve egress data programmatically:
+
+```
+GET /api/v1/auth/projects/:projectId/usage
+GET /api/v1/auth/projects/:projectId/egress-breakdown
+```
+
+---
+
+## Database Schema
+
+Egress events are stored in the `egress_events` table:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Unique event identifier |
+| `project_id` | UUID | Project the request belongs to |
+| `api_key_id` | UUID | API key used for the request |
+| `bytes` | BIGINT | Size of response in bytes |
+| `endpoint` | VARCHAR | API endpoint path |
+| `method` | VARCHAR | HTTP method (GET, POST, etc.) |
+| `year` | INTEGER | Year of the event |
+| `month` | INTEGER | Month of the event |
+| `created_at` | TIMESTAMP | When the event occurred |
+
+Monthly aggregates are stored in `egress_monthly` for efficient querying:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `project_id` | UUID | Project identifier |
+| `year` | INTEGER | Year |
+| `month` | INTEGER | Month |
+| `total_bytes` | BIGINT | Total egress for the month |
+
+---
+
+## Best Practices
+
+### Reducing Egress
+
+1. **Use pagination** - Limit the number of documents returned per request
+2. **Select specific fields** - Only request the fields you need
+3. **Cache responses** - Cache frequently accessed data on your end
+4. **Use efficient queries** - Filter data server-side rather than client-side
+
+### Monitoring
+
+- Regularly check the egress breakdown to identify high-usage endpoints
+- Set up alerts if approaching the limit
+- Consider upgrading your plan if consistently hitting limits
