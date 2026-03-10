@@ -1,0 +1,144 @@
+---
+title: Self-Hosting
+description: Deploy Mavibase on your own infrastructure using Docker or from source.
+---
+
+# Self-Hosting
+
+Mavibase can be self-hosted using three approaches. Pick the one that fits your setup:
+
+| Method | Best For |
+|---|---|
+| **Clone & Run** | Local development, full customization |
+| **Docker Quick** | Fast production deploys |
+| **Docker + BYOD** | Production with your own database |
+
+---
+
+## Prerequisites
+
+- **Node.js** v19 or higher
+- **Docker** — only if using a Docker method
+- **PostgreSQL or MySQL** — only if using BYOD
+
+---
+
+## Installation
+
+### Option 1 — Clone & Run
+
+```bash
+git clone https://github.com/mavibase/mavibase.git
+cd mavibase
+npm install
+npm run dev
+```
+
+Uses **SQLite** by default for local development. To connect your own database, set `DATABASE_URL` in your `.env` file.
+
+---
+
+### Option 2 — Docker Quick Start
+
+```bash
+docker pull mavibase/mavibase:latest
+docker run -p 3000:3000 mavibase/mavibase:latest
+```
+
+Your instance will be live at `http://localhost:3000`.
+
+---
+
+### Option 3 — Docker + BYOD
+
+```bash
+docker run \
+  -p 3000:3000 \
+  -e DATABASE_URL=postgresql://user:password@your-host:5432/mavibase \
+  mavibase/mavibase:latest
+```
+
+---
+
+## Environment Variables
+
+Create a `.env` file in your project root:
+
+```bash
+# Database
+DATABASE_URL=postgresql://user:password@your-host:5432/mavibase
+PLATFORM_DB_URL=postgresql://user:password@your-host:5432/platform
+
+# Redis
+REDIS_URL=redis://password@your-redis.upstash.io:6379
+
+# Security — generate a unique value for each
+ACCESS_TOKEN_SECRET=     # 64 chars
+REFRESH_TOKEN_SECRET=    # 64 chars
+JWT_SECRET=              # 64 chars
+API_KEY_PEPPER=          # min 32 chars
+INTERNAL_API_KEY=        # min 32 chars
+
+# Production
+NODE_ENV=production
+FRONTEND_URL=https://console.yourdomain.com
+ALLOWED_ORIGINS=https://console.yourdomain.com
+CORS_ORIGIN=https://console.yourdomain.com
+```
+
+> **Warning:** Never commit your `.env` file to version control. Generate fresh secrets for every environment.
+
+---
+
+## Custom Port
+
+Mavibase defaults to port `3000`. To use a different one:
+
+```bash
+npm run dev -- --port 3333
+```
+
+If the port is taken, Mavibase will automatically try the next available one.
+
+---
+
+## Deployment
+
+### Vercel
+
+```bash
+vercel deploy
+```
+
+### Other Platforms
+
+Set all required [environment variables](#environment-variables) in your platform's dashboard and deploy as a standard Node.js app. Works with AWS, GCP, Railway, Fly.io, Heroku, and others.
+
+---
+
+## Troubleshooting
+
+### Database connection errors
+
+1. Confirm `DATABASE_URL` is correctly formatted
+2. Ensure the database server is running and reachable
+3. Check that firewall rules allow the connection
+
+### Port already in use
+
+Specify a different port with `--port 3333`, or let Mavibase automatically fall back to the next available one.
+
+### Module not found errors
+
+```bash
+rm -rf node_modules && npm install
+node --version  # must be 19+
+```
+
+---
+
+## Help & Resources
+
+- [GitHub Issues](https://github.com/mavibase/mavibase/issues) — bug reports & feature requests
+- [Architecture Guide](/docs/architecture)
+- [Introduction](/docs/introduction)
