@@ -1,0 +1,440 @@
+---
+title: Self-Hosting Guide
+description: Run your own Mavibase instance with this comprehensive self-hosting guide covering Docker, BYOD, and production deployments.
+---
+
+# Self-Hosting Guide
+
+Run your own Mavibase instance. This guide covers all the different ways to self-host.
+
+## Requirements
+
+- Docker and Docker Compose installed
+- 1 GB RAM minimum (2 GB recommended)
+- Git (only if cloning the repository)
+
+---
+
+## Overview: Choose Your Path
+
+```
+                    ┌─────────────────────────┐
+                    │   How do you want to    │
+                    │     self-host?          │
+                    └───────────┬─────────────┘
+                                │
+            ┌───────────────────┼───────────────────┐
+            │                   │                   │
+            ▼                   ▼                   ▼
+    ┌───────────────┐   ┌───────────────┐   ┌───────────────┐
+    │  Option A:    │   │  Option B:    │   │  Option C:    │
+    │  Clone Repo   │   │  Docker Pull  │   │  Docker Pull  │
+    │               │   │  (Quick)      │   │  + BYOD       │
+    └───────┬───────┘   └───────┬───────┘   └───────┬───────┘
+            │                   │                   │
+            ▼                   │                   │
+    ┌───────────────┐           │                   │
+    │ Sub-options:  │           │                   │
+    │ A1: Built-in  │           │                   │
+    │     databases │           │                   │
+    │ A2: BYOD      │           │                   │
+    └───────────────┘           │                   │
+            │                   │                   │
+            ▼                   ▼                   ▼
+    ┌─────────────────────────────────────────────────┐
+    │            Mavibase Running!                    │
+    │         Console: localhost:3000                 │
+    │         API: localhost:5000                     │
+    └─────────────────────────────────────────────────┘
+```
+
+---
+
+## Quick Reference Table
+
+| Method | Use Case | What You Need | Compose File |
+|--------|----------|---------------|--------------|
+| **A1: Clone + Built-in DB** | Development, customization | `DB_PASSWORD`, `REDIS_PASSWORD` | `docker-compose.yml` |
+| **A2: Clone + BYOD** | Clone with external databases | `DATABASE_URL`, `PLATFORM_DB_URL`, `REDIS_URL` | `docker-compose.prod.yml` |
+| **B: Docker Pull (Quick)** | Fast setup without cloning | `DB_PASSWORD`, `REDIS_PASSWORD` | `docker-compose.yml` |
+| **C: Docker Pull + BYOD** | Production with managed DBs | `DATABASE_URL`, `PLATFORM_DB_URL`, `REDIS_URL` | `docker-compose.prod.yml` |
+
+---
+
+## Option A: Clone the Repository
+
+Best for developers who want to customize, contribute, or have full control.
+
+```bash
+git clone https://github.com/mavibase/mavibase.git
+cd mavibase
+cp .env.example .env
+```
+
+Now you have two sub-options:
+
+### Option A1: Use Built-in Databases (Recommended for Development)
+
+Docker will create PostgreSQL and Redis containers automatically.
+
+**Configure `.env`:**
+
+```bash
+# ============================================
+# DOCKER COMPOSE MODE - Only set passwords!
+# URLs are built automatically by docker-compose.yml
+# ============================================
+
+DB_PASSWORD=your-secure-postgres-password
+REDIS_PASSWORD=your-secure-redis-password
+
+# DO NOT set these - they're built automatically:
+# DATABASE_URL=...     <- Don't set this!
+# PLATFORM_DB_URL=...  <- Don't set this!
+# REDIS_URL=...        <- Don't set this!
+
+# Security tokens - CHANGE THESE!
+ACCESS_TOKEN_SECRET=generate-64-char-random-string
+REFRESH_TOKEN_SECRET=generate-another-64-char-string
+JWT_SECRET=and-another-64-char-string
+API_KEY_PEPPER=minimum-32-chars-random-pepper
+INTERNAL_API_KEY=minimum-32-chars-internal-key
+```
+
+**Start:**
+
+```bash
+docker compose -f infra/docker/docker-compose.yml up -d
+```
+
+**What happens:** Docker Compose automatically constructs:
+- `DATABASE_URL=postgresql://mavibase:${DB_PASSWORD}@postgres:5432/mavibase_db`
+- `PLATFORM_DB_URL=postgresql://mavibase:${DB_PASSWORD}@postgres:5432/mavibase_platform`
+- `REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379`
+
+---
+
+### Option A2: Bring Your Own Database (BYOD)
+
+Use external managed databases like Neon, Supabase, AWS RDS, Upstash.
+
+**Configure `.env`:**
+
+```bash
+# ============================================
+# BYOD MODE - Set full URLs!
+# ============================================
+
+DATABASE_URL=postgresql://user:password@your-host.neon.tech:5432/mavibase_db?sslmode=require
+PLATFORM_DB_URL=postgresql://user:password@your-host.neon.tech:5432/mavibase_platform?sslmode=require
+REDIS_URL=redis://:password@your-redis.upstash.io:6379
+
+# Security tokens - CHANGE THESE!
+ACCESS_TOKEN_SECRET=generate-64-char-random-string
+REFRESH_TOKEN_SECRET=generate-another-64-char-string
+JWT_SECRET=and-another-64-char-string
+API_KEY_PEPPER=minimum-32-chars-random-pepper
+INTERNAL_API_KEY=minimum-32-chars-internal-key
+
+# Production settings
+NODE_ENV=production
+FRONTEND_URL=https://console.yourdomain.com
+ALLOWED_ORIGINS=https://console.yourdomain.com
+CORS_ORIGIN=https://console.yourdomain.com
+```
+
+**Start:**
+
+```bash
+docker compose -f infra/docker/docker-compose.prod.yml up -d
+```
+
+---
+
+## Option B: Docker Pull (Quick Start)
+
+Fastest way to get running without cloning the repository.
+
+**Step 1: Create project folder**
+
+```bash
+mkdir mavibase && cd mavibase
+```
+
+**Step 2: Download required files**
+
+```bash
+curl -O https://raw.githubusercontent.com/mavibase/mavibase/main/infra/docker/docker-compose.yml
+curl -O https://raw.githubusercontent.com/mavibase/mavibase/main/infra/docker/init-db.sh
+```
+
+> **Important:** You need BOTH files. The `init-db.sh` creates the second database.
+
+**Step 3: Create `.env`**
+
+```bash
+touch .env
+```
+
+Add to `.env`:
+
+```bash
+DB_PASSWORD=your-secure-postgres-password
+REDIS_PASSWORD=your-secure-redis-password
+
+# Security tokens - CHANGE THESE!
+ACCESS_TOKEN_SECRET=generate-64-char-random-string
+REFRESH_TOKEN_SECRET=generate-another-64-char-string
+JWT_SECRET=and-another-64-char-string
+API_KEY_PEPPER=minimum-32-chars-random-pepper
+INTERNAL_API_KEY=minimum-32-chars-internal-key
+```
+
+**Step 4: Pull and start**
+
+```bash
+docker pull ghcr.io/mavibase/mavibase:latest
+docker compose up -d
+```
+
+---
+
+## Option C: Docker Pull + BYOD (Production)
+
+For production with external managed databases.
+
+**Step 1: Create project folder**
+
+```bash
+mkdir mavibase && cd mavibase
+```
+
+**Step 2: Download production compose file**
+
+```bash
+curl -O https://raw.githubusercontent.com/mavibase/mavibase/main/infra/docker/docker-compose.prod.yml
+```
+
+**Step 3: Create `.env` with full URLs**
+
+```bash
+touch .env
+```
+
+Add to `.env`:
+
+```bash
+DATABASE_URL=postgresql://user:password@your-host.neon.tech:5432/mavibase_db?sslmode=require
+PLATFORM_DB_URL=postgresql://user:password@your-host.neon.tech:5432/mavibase_platform?sslmode=require
+REDIS_URL=redis://:password@your-redis.upstash.io:6379
+
+# Security tokens - CHANGE THESE!
+ACCESS_TOKEN_SECRET=generate-64-char-random-string
+REFRESH_TOKEN_SECRET=generate-another-64-char-string
+JWT_SECRET=and-another-64-char-string
+API_KEY_PEPPER=minimum-32-chars-random-pepper
+INTERNAL_API_KEY=minimum-32-chars-internal-key
+
+# Production settings
+NODE_ENV=production
+FRONTEND_URL=https://console.yourdomain.com
+ALLOWED_ORIGINS=https://console.yourdomain.com
+CORS_ORIGIN=https://console.yourdomain.com
+```
+
+**Step 4: Pull and start**
+
+```bash
+docker pull ghcr.io/mavibase/mavibase:latest
+docker compose -f docker-compose.prod.yml up -d
+```
+
+---
+
+## Configuring Ports
+
+Default ports:
+- **Console:** 3000
+- **API Server:** 5000
+
+### Change via environment variables
+
+Add to your `.env`:
+
+```bash
+SERVER_PORT=8080
+CONSOLE_PORT=8081
+```
+
+### Change via package.json (if cloned)
+
+Edit `apps/console/package.json`:
+
+```json
+"scripts": {
+  "dev": "next dev --turbo -p 3000",
+  "start": "next start -p 3000"
+}
+```
+
+Change `-p 3000` to your desired port.
+
+---
+
+## Optional: Email Configuration
+
+Enable email verification and team invitations.
+
+### Using SMTP
+
+```bash
+ENABLE_EMAIL_SERVICE=true
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASSWORD=your-app-password
+SMTP_FROM_EMAIL=noreply@yourdomain.com
+```
+
+### Using Resend
+
+```bash
+ENABLE_EMAIL_SERVICE=true
+EMAIL_PROVIDER=resend
+RESEND_API_KEY=your-resend-api-key
+```
+
+---
+
+## Generate Secure Values
+
+```bash
+# Generate random strings for security tokens
+openssl rand -base64 32
+
+# Or use Node.js
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+---
+
+## Common Commands
+
+```bash
+# Start containers
+docker compose up -d
+
+# Stop containers
+docker compose down
+
+# View logs
+docker compose logs -f
+
+# View specific service logs
+docker compose logs -f mavibase
+
+# Update to latest version
+docker compose pull
+docker compose up -d
+
+# Full reset (WARNING: deletes all data!)
+docker compose down -v
+docker compose up -d
+```
+
+---
+
+## What Gets Created
+
+### With docker-compose.yml (Options A1, B)
+
+| Service | Port | Description |
+|---------|------|-------------|
+| **mavibase** | 3000, 5000 | Console + API |
+| **postgres** | 5432 | PostgreSQL (2 databases) |
+| **redis** | 6379 | Cache & sessions |
+
+### With docker-compose.prod.yml (Options A2, C)
+
+| Service | Port | Description |
+|---------|------|-------------|
+| **mavibase** | 3000, 5000 | Console + API only |
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    Your Server                       │
+├─────────────────────────────────────────────────────┤
+│                                                      │
+│  ┌──────────────┐  ┌──────────────┐  ┌───────────┐  │
+│  │   Mavibase   │  │  PostgreSQL  │  │   Redis   │  │
+│  │              │  │              │  │           │  │
+│  │ Console:3000 │──│ mavibase_db  │  │  Cache    │  │
+│  │ API:5000     │  │ mavibase_    │  │  Sessions │  │
+│  │              │  │   platform   │  │           │  │
+│  └──────────────┘  └──────────────┘  └───────────┘  │
+│                                                      │
+└─────────────────────────────────────────────────────┘
+```
+
+---
+
+## Troubleshooting
+
+### Container won't start
+
+```bash
+docker compose logs mavibase
+```
+
+### Port already in use
+
+```bash
+# Check what's using the port
+lsof -i :3000
+lsof -i :5000
+
+# Then change ports in .env
+SERVER_PORT=8080
+CONSOLE_PORT=8081
+```
+
+### Database connection error
+
+- **Options A1/B:** Make sure `DB_PASSWORD` and `REDIS_PASSWORD` are set
+- **Options A2/C:** Verify your `DATABASE_URL`, `PLATFORM_DB_URL`, and `REDIS_URL` are correct
+
+### Reset everything
+
+```bash
+# WARNING: This deletes all data!
+docker compose down -v
+docker compose up -d
+```
+
+---
+
+## Production Checklist
+
+- [ ] Changed all passwords and security tokens in `.env`
+- [ ] Set `NODE_ENV=production`
+- [ ] Set `FRONTEND_URL` and `ALLOWED_ORIGINS` to your domain
+- [ ] Set up HTTPS (use Nginx, Caddy, or cloud load balancer)
+- [ ] Set up database backups
+- [ ] (Optional) Enabled email service
+
+### Example: Caddy for HTTPS
+
+```
+# Caddyfile
+console.yourdomain.com {
+    reverse_proxy localhost:3000
+}
+
+api.yourdomain.com {
+    reverse_proxy localhost:5000
+}
+```
