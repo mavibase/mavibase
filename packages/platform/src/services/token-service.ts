@@ -1,7 +1,12 @@
 import jwt from "jsonwebtoken"
+import crypto from "crypto"
 import { redis } from "../config/redis"
-import { createSession, getSessionByRefreshToken, updateSessionLastUsed, revokeSession } from "./session-service"
+import { createSession, getSessionByRefreshToken, updateSessionLastUsed, revokeSession, updateSession } from "./session-service"
 import { logger } from "../utils/logger"
+
+const hashToken = (token: string): string => {
+  return crypto.createHash("sha256").update(token).digest("hex")
+}
 
 const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || process.env.JWT_SECRET || "access-secret-key"
 const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET || "refresh-secret-key"
@@ -54,8 +59,9 @@ export const generateRefreshToken = (userId: string): string => {
 
 export const verifyAccessToken = async (token: string): Promise<any> => {
   try {
-    // Check if token is blacklisted
-    const blacklisted = await redis.get(`blacklist:${token}`)
+    // Check if token is blacklisted (using hash to match how revokeSession blacklists)
+    const tokenHash = hashToken(token)
+    const blacklisted = await redis.get(`blacklist:${tokenHash}`)
     if (blacklisted) {
       return null
     }
@@ -177,19 +183,14 @@ export const refreshAccessToken = async (refreshToken: string, ip?: string, user
   const accessTokenExpiresAt = new Date(Date.now() + parseExpiryToMs(ACCESS_TOKEN_EXPIRY))
   const refreshTokenExpiresAt = new Date(Date.now() + parseExpiryToMs(REFRESH_TOKEN_EXPIRY))
 
-  // Create new session record with updated tokens
-  await createSession({
-    userId: decoded.userId,
+  // IMPORTANT: Update existing session with new tokens instead of creating a new one
+  // This preserves the session ID so getSessionByAccessToken can find it
+  await updateSession(session.id, {
     accessToken: newAccessToken,
     refreshToken: newRefreshToken,
-    ipAddress: ip,
-    userAgent,
     accessTokenExpiresAt,
     refreshTokenExpiresAt,
   })
-
-  // Update the old session's last_used_at timestamp
-  await updateSessionLastUsed(refreshToken)
 
   return {
     accessToken: newAccessToken,

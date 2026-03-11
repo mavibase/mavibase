@@ -1,4 +1,5 @@
 import { pool } from "../config/database"
+import { redis } from "../config/redis"
 import { v4 as uuidv4 } from "uuid"
 import crypto from "crypto"
 
@@ -87,15 +88,14 @@ export const getUserSessions = async (userId: string) => {
 }
 
 export const revokeSession = async (sessionId: string, userId: string) => {
-  const result = await pool.query(
-    `UPDATE sessions 
-     SET revoked = true, revoked_at = NOW()
-     WHERE id = $1 AND user_id = $2
-     RETURNING id`,
+  // Fetch the session first to get access token hash and expiry for blacklisting
+  const sessionResult = await pool.query(
+    `SELECT id, access_token_hash, access_token_expires_at FROM sessions 
+     WHERE id = $1 AND user_id = $2 AND revoked = false`,
     [sessionId, userId],
   )
 
-  if (result.rows.length === 0) {
+  if (sessionResult.rows.length === 0) {
     throw {
       statusCode: 404,
       code: "SESSION_NOT_FOUND",
@@ -103,7 +103,21 @@ export const revokeSession = async (sessionId: string, userId: string) => {
     }
   }
 
-  return result.rows[0]
+  const session = sessionResult.rows[0]
+
+  // Revoke in database
+  await pool.query(
+    `UPDATE sessions SET revoked = true, revoked_at = NOW() WHERE id = $1`,
+    [sessionId],
+  )
+
+  // Blacklist the access token in Redis so Device A is immediately rejected
+  const remainingTtl = Math.floor((new Date(session.access_token_expires_at).getTime() - Date.now()) / 1000)
+  if (remainingTtl > 0) {
+    await redis.set(`blacklist:${session.access_token_hash}`, "1", { EX: remainingTtl })
+  }
+
+  return { id: session.id }
 }
 
 export const revokeAllUserSessions = async (userId: string, exceptSessionId?: string) => {
@@ -141,4 +155,30 @@ export const updateSessionLastUsed = async (refreshToken: string) => {
   const tokenHash = hashToken(refreshToken)
 
   await pool.query(`UPDATE sessions SET last_used_at = NOW() WHERE refresh_token_hash = $1`, [tokenHash])
+}
+
+export const updateSession = async (sessionId: string, data: {
+  accessToken: string
+  refreshToken: string
+  accessTokenExpiresAt: Date
+  refreshTokenExpiresAt: Date
+}) => {
+  const { accessToken, refreshToken, accessTokenExpiresAt, refreshTokenExpiresAt } = data
+
+  const accessTokenHash = hashToken(accessToken)
+  const refreshTokenHash = hashToken(refreshToken)
+
+  const result = await pool.query(
+    `UPDATE sessions 
+     SET access_token_hash = $2, 
+         refresh_token_hash = $3,
+         access_token_expires_at = $4,
+         refresh_token_expires_at = $5,
+         last_used_at = NOW()
+     WHERE id = $1
+     RETURNING id, user_id, ip_address, user_agent, access_token_expires_at, refresh_token_expires_at, created_at`,
+    [sessionId, accessTokenHash, refreshTokenHash, accessTokenExpiresAt, refreshTokenExpiresAt],
+  )
+
+  return result.rows[0] || null
 }
