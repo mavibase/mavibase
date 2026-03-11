@@ -60,6 +60,20 @@ export const getSessionByRefreshToken = async (refreshToken: string) => {
   return result.rows[0] || null
 }
 
+export const getSessionByAccessToken = async (accessToken: string) => {
+  const tokenHash = hashToken(accessToken)
+
+  const result = await pool.query(
+    `SELECT id FROM sessions 
+     WHERE access_token_hash = $1 
+     AND revoked = false 
+     AND access_token_expires_at > NOW()`,
+    [tokenHash],
+  )
+
+  return result.rows[0] || null
+}
+
 export const getUserSessions = async (userId: string) => {
   const result = await pool.query(
     `SELECT id, ip_address, user_agent, access_token_expires_at, refresh_token_expires_at, revoked, created_at, last_used_at

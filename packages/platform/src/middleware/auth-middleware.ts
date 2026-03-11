@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express"
 import { verifyAccessToken } from "../services/token-service"
 import { getUserById } from "../services/auth-service"
+import { getSessionByAccessToken } from "../services/session-service"
 
 export const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -42,6 +43,12 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
 
     req.user = user
     req.userId = user.id
+
+    // Attach current session ID for session management
+    const session = await getSessionByAccessToken(token)
+    if (session) {
+      req.sessionId = session.id
+    }
 
     next()
   } catch (error: any) {

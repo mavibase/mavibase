@@ -5,9 +5,15 @@ export const listSessions = async (req: Request, res: Response) => {
   try {
     const sessions = await sessionService.getUserSessions(req.userId!)
 
+    // Mark the current session
+    const sessionsWithCurrent = sessions.map((session: any) => ({
+      ...session,
+      is_current: session.id === req.sessionId,
+    }))
+
     res.json({
       success: true,
-      data: { sessions },
+      data: { sessions: sessionsWithCurrent },
     })
   } catch (error: any) {
     res.status(500).json({
@@ -41,11 +47,12 @@ export const revokeSession = async (req: Request, res: Response) => {
 
 export const revokeAllSessions = async (req: Request, res: Response) => {
   try {
-    await sessionService.revokeAllUserSessions(req.userId!)
+    // Exclude current session from revocation
+    await sessionService.revokeAllUserSessions(req.userId!, req.sessionId)
 
     res.json({
       success: true,
-      message: "All sessions revoked successfully",
+      message: "All other sessions revoked successfully",
     })
   } catch (error: any) {
     res.status(500).json({
