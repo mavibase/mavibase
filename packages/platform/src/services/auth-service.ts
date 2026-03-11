@@ -263,15 +263,7 @@ export const resetPassword = async (token: string, newPassword: string) => {
 }
 
 export const verifyEmail = async (token: string) => {
-
-
   const tokenHash = crypto.createHash("sha256").update(token).digest("hex")
-
-
-  const checkToken = await pool.query(
-    "SELECT user_id, expires_at, verified_at FROM email_verifications WHERE token_hash = $1",
-    [tokenHash],
-  )
 
   const result = await pool.query(
     "UPDATE email_verifications SET verified_at = NOW() WHERE token_hash = $1 AND expires_at > NOW() AND verified_at IS NULL RETURNING user_id",

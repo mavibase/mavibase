@@ -33,8 +33,8 @@ const smtpConfig = {
   },
 }
 
-const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.EMAIL_FROM || "noreply@baasplatform.com"
-const fromName = process.env.SMTP_FROM_NAME || "BaaS Platform"
+const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.EMAIL_FROM || "noreply@mavibase.com"
+const fromName = process.env.SMTP_FROM_NAME || "Mavibase"
 
 let transporter: Transporter | null = null
 let resendClient: any = null
@@ -136,6 +136,12 @@ const sendEmail = async (mailOptions: any): Promise<void> => {
 export const sendVerificationEmail = async (email: string, userId: string): Promise<void> => {
   const token = uuidv4()
   const tokenHash = crypto.createHash("sha256").update(token).digest("hex")
+
+  // Invalidate any existing unused tokens for this user before issuing a new one
+  await pool.query(
+    "UPDATE email_verifications SET expires_at = NOW() WHERE user_id = $1 AND verified_at IS NULL AND expires_at > NOW()",
+    [userId],
+  )
 
   await pool.query(
     "INSERT INTO email_verifications (user_id, email, token_hash, expires_at) VALUES ($1, $2, $3, NOW() + INTERVAL '24 hours')",
