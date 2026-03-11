@@ -1,0 +1,256 @@
+# Data Model
+
+Learn about Mavibase's hierarchical data structure and how it enables flexible, schema-optional document storage.
+
+## Overview
+
+Mavibase uses a hierarchical data model consisting of three main tiers:
+
+```
+Database
+  └── Collection
+       └── Document
+```
+
+This structure provides flexibility for various use cases while maintaining organization and control.
+
+## Databases
+
+A **database** is a top-level container that groups related collections. Each database:
+
+- Has a unique name within a project
+- Belongs to exactly one project
+- Can contain multiple collections
+- Supports role-based access control
+- Maintains separate audit logs
+
+### Creating a Database
+
+```bash
+curl -X POST https://<API_ENDPOINT>/api/v1/db/databases \
+  -H "Authorization: Bearer YOUR_PROJECT_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "customers",
+    "description": "Customer and account data"
+  }'
+```
+
+## Collections
+
+A **collection** is a logical grouping of documents within a database. Key characteristics:
+
+- **Schema-Optional**: Define a schema for validation or leave it flexible
+- **Type**: Determines document structure (e.g., "users", "orders")
+- **Indexing**: Support for field-level indexes to optimize queries
+- **Timestamps**: Automatic `createdAt` and `updatedAt` fields
+
+### Schema Definition
+
+Collections can optionally define a schema for automatic validation:
+
+```javascript
+{
+  "name": "users",
+  "schema": {
+    "fields": [
+      {
+        "name": "email",
+        "type": "string",
+        "required": true,
+        "unique": true
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "age",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "role",
+        "type": "string",
+        "enum": ["admin", "user", "guest"]
+      }
+    ]
+  }
+}
+```
+
+### Supported Field Types
+
+- **string**: Text data
+- **number**: Integers and decimals
+- **boolean**: True/false values
+- **date**: ISO 8601 date-time strings
+- **array**: Homogeneous arrays
+- **object**: Nested objects
+- **reference**: Links to documents in other collections
+- **text**: Full-text searchable strings
+- **enum**: Restricted set of values
+- **binary**: Base64-encoded binary data
+
+## Documents
+
+A **document** is a JSON object stored in a collection. Features:
+
+- **Flexible Structure**: Extra fields allowed beyond schema
+- **Versioning**: Automatic version history
+- **Timestamps**: `createdAt`, `updatedAt`, `deletedAt`
+- **Relationships**: References to other documents
+- **Soft Deletes**: Documents marked as deleted but retained
+
+### Document Structure
+
+```javascript
+{
+  "_id": "doc_abc123",
+  "_version": 3,
+  "_createdAt": "2024-01-15T10:30:00Z",
+  "_updatedAt": "2024-01-16T14:22:00Z",
+  "_deletedAt": null,
+  
+  // User-defined fields
+  "email": "user@example.com",
+  "name": "John Doe",
+  "preferences": {
+    "theme": "dark",
+    "notifications": true
+  }
+}
+```
+
+### Reserved Fields
+
+Fields starting with underscore (`_`) are reserved:
+
+- `_id`: Unique identifier
+- `_version`: Current version number
+- `_createdAt`: Creation timestamp
+- `_updatedAt`: Last modification timestamp
+- `_deletedAt`: Soft delete timestamp (null if active)
+
+## Relationships
+
+Documents can reference other documents to create relationships:
+
+### One-to-One
+
+One user has one profile:
+
+```javascript
+// users collection
+{
+  "_id": "user_123",
+  "name": "John Doe",
+  "profile_id": "profile_456"
+}
+
+// profiles collection
+{
+  "_id": "profile_456",
+  "bio": "Software Engineer",
+  "location": "San Francisco"
+}
+```
+
+### One-to-Many
+
+One organization has many users:
+
+```javascript
+// organizations collection
+{
+  "_id": "org_123",
+  "name": "Acme Corp"
+}
+
+// users collection
+{
+  "_id": "user_123",
+  "name": "John",
+  "org_id": "org_123"
+}
+
+{
+  "_id": "user_124",
+  "name": "Jane",
+  "org_id": "org_123"
+}
+```
+
+### Many-to-Many
+
+Users belong to multiple teams, teams have multiple users:
+
+```javascript
+// users collection
+{
+  "_id": "user_123",
+  "name": "John"
+}
+
+// teams collection
+{
+  "_id": "team_456",
+  "name": "Backend Team"
+}
+
+// user_team_memberships collection (junction table)
+{
+  "_id": "membership_789",
+  "user_id": "user_123",
+  "team_id": "team_456",
+  "role": "member"
+}
+```
+
+## Soft Deletes
+
+Documents are never permanently deleted. Instead, they're marked with a `_deletedAt` timestamp:
+
+```javascript
+// Delete a document
+DELETE /api/v1/db/documents/doc_123
+
+// Document after deletion
+{
+  "_id": "doc_123",
+  "_deletedAt": "2024-01-16T15:00:00Z",
+  "name": "John Doe"
+}
+```
+
+### Querying Deleted Documents
+
+By default, queries exclude deleted documents. Include them explicitly:
+
+```bash
+GET /api/v1/db/documents?includeSoftDeleted=true
+```
+
+## Document Versioning
+
+Every change to a document creates a new version. Access version history:
+
+```bash
+# Get all versions
+GET /api/v1/db/documents/doc_123/versions
+
+# Restore a previous version
+POST /api/v1/db/documents/doc_123/restore
+-d '{"targetVersion": 2}'
+```
+
+## Best Practices
+
+1. **Design Collections Logically**: Group related entities
+2. **Use Schemas for Critical Data**: Enforce structure where needed
+3. **Implement Relationships**: Use references for data consistency
+4. **Index Frequently Queried Fields**: Improve performance
+5. **Plan for Growth**: Consider document size and query patterns
+6. **Leverage Versioning**: Track important changes
+7. **Use Soft Deletes**: Maintain audit trails

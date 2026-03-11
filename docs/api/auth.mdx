@@ -1,0 +1,517 @@
+---
+title: Authentication
+description: API reference for user authentication endpoints
+readTime: 8
+relatedTo:
+  - users
+  - sessions
+  - two-factor
+---
+
+# Authentication API
+
+The Authentication API handles user registration, login, email verification, password reset, and token management.
+
+## Base URL
+
+```
+<API_ENDPOINT>/api/v1/platform/auth
+```
+
+---
+
+## Register
+
+Creates a new user account.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/platform/auth/register
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `email` | string | Yes | User's email address |
+| `password` | string | Yes | Password (min 8 characters) |
+| `name` | string | Yes | User's display name |
+
+### Password Requirements
+
+- Minimum 8 characters
+- At least one uppercase letter
+- At least one lowercase letter
+- At least one number
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "SecurePass123",
+    "name": "John Doe"
+  }'
+```
+
+### JavaScript Example
+
+```javascript
+const response = await fetch('<API_ENDPOINT>/api/v1/platform/auth/register', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    email: 'user@example.com',
+    password: 'SecurePass123',
+    name: 'John Doe',
+  }),
+});
+
+const data = await response.json();
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Registration successful. Please check your email to verify your account.",
+  "user": {
+    "id": "usr_abc123",
+    "email": "user@example.com",
+    "name": "John Doe",
+    "emailVerified": false,
+    "createdAt": "2024-01-15T10:30:00.000Z"
+  }
+}
+```
+
+---
+
+## Login
+
+Authenticates a user and returns JWT tokens.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/platform/auth/login
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `email` | string | Yes | User's email address |
+| `password` | string | Yes | User's password |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "SecurePass123"
+  }'
+```
+
+### JavaScript Example
+
+```javascript
+const response = await fetch('<API_ENDPOINT>/api/v1/platform/auth/login', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    email: 'user@example.com',
+    password: 'SecurePass123',
+  }),
+});
+
+const { token, refreshToken, user } = await response.json();
+
+// Store tokens securely
+localStorage.setItem('token', token);
+localStorage.setItem('refreshToken', refreshToken);
+```
+
+### Response (Success)
+
+```json
+{
+  "success": true,
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expiresIn": 900,
+  "user": {
+    "id": "usr_abc123",
+    "email": "user@example.com",
+    "name": "John Doe",
+    "emailVerified": true
+  }
+}
+```
+
+### Response (2FA Required)
+
+If the user has two-factor authentication enabled:
+
+```json
+{
+  "success": true,
+  "requires2FA": true,
+  "tempToken": "temp_abc123xyz",
+  "message": "Two-factor authentication required"
+}
+```
+
+See [Two-Factor Authentication](/docs/api/two-factor) for completing 2FA login.
+
+---
+
+## Logout
+
+Invalidates the current session.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/platform/auth/logout
+```
+
+### Headers
+
+| Header | Required | Description |
+|--------|----------|-------------|
+| `Authorization` | Yes | Bearer token |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/auth/logout" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Logged out successfully"
+}
+```
+
+---
+
+## Refresh Token
+
+Obtains a new access token using a refresh token.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/platform/auth/refresh-token
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `refreshToken` | string | Yes | Valid refresh token |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/auth/refresh-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }'
+```
+
+### JavaScript Example
+
+```javascript
+async function refreshAccessToken() {
+  const refreshToken = localStorage.getItem('refreshToken');
+
+  const response = await fetch(
+    '<API_ENDPOINT>/api/v1/platform/auth/refresh-token',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ refreshToken }),
+    }
+  );
+
+  const data = await response.json();
+
+  if (data.success) {
+    localStorage.setItem('token', data.token);
+    return data.token;
+  }
+
+  // Refresh token expired, redirect to login
+  window.location.href = '/login';
+}
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expiresIn": 900
+}
+```
+
+---
+
+## Verify Token
+
+Validates an access token and returns user information.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/platform/auth/verify-token
+```
+
+### Headers
+
+| Header | Required | Description |
+|--------|----------|-------------|
+| `Authorization` | Yes | Bearer token |
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/platform/auth/verify-token" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "valid": true,
+  "user": {
+    "id": "usr_abc123",
+    "email": "user@example.com",
+    "name": "John Doe"
+  },
+  "expiresAt": "2024-01-15T11:00:00.000Z"
+}
+```
+
+---
+
+## Verify Email
+
+Verifies a user's email address using the token sent via email.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/platform/auth/verify-email
+```
+
+### Query Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `token` | string | Yes | Email verification token |
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/platform/auth/verify-email?token=verification_token_here"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Email verified successfully"
+}
+```
+
+---
+
+## Resend Verification Email
+
+Sends a new verification email to the user.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/platform/auth/resend-verification
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `email` | string | Yes | User's email address |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/auth/resend-verification" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com"
+  }'
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Verification email sent"
+}
+```
+
+---
+
+## Request Password Reset
+
+Initiates the password reset process by sending a reset email.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/platform/auth/password-reset/request
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `email` | string | Yes | User's email address |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/auth/password-reset/request" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com"
+  }'
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "If an account with this email exists, a password reset link has been sent."
+}
+```
+
+**Note**: For security, the same response is returned regardless of whether the email exists.
+
+---
+
+## Confirm Password Reset
+
+Completes the password reset using the token from the email.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/platform/auth/password-reset/confirm
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `token` | string | Yes | Password reset token from email |
+| `password` | string | Yes | New password |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/auth/password-reset/confirm" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "token": "reset_token_from_email",
+    "password": "NewSecurePass123"
+  }'
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Password reset successfully"
+}
+```
+
+---
+
+## Error Responses
+
+### 400 Bad Request
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid email format"
+  }
+}
+```
+
+### 401 Unauthorized
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "INVALID_CREDENTIALS",
+    "message": "Invalid email or password"
+  }
+}
+```
+
+### 403 Forbidden
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "EMAIL_NOT_VERIFIED",
+    "message": "Please verify your email before logging in"
+  }
+}
+```
+
+### 429 Too Many Requests
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "RATE_LIMITED",
+    "message": "Too many attempts. Please try again later.",
+    "retryAfter": 900
+  }
+}
+```

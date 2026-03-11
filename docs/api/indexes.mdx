@@ -1,0 +1,333 @@
+---
+title: Indexes
+description: API reference for managing collection indexes
+readTime: 5
+relatedTo:
+  - collections
+  - querying
+  - slow-queries
+---
+
+# Indexes API
+
+Indexes improve query performance by creating optimized data structures for frequently queried fields. Create indexes on fields you query, filter, or sort by often.
+
+## Authentication
+
+All index endpoints require an API key with appropriate scopes:
+
+| Scope | Required For |
+|-------|--------------|
+| `databases:read` | GET requests |
+| `databases:write` | POST requests |
+| `databases:delete` | DELETE requests |
+
+---
+
+## Index Lifecycle
+
+Indexes go through several states:
+
+| Status | Description |
+|--------|-------------|
+| `pending` | Index creation queued |
+| `creating` | Index is being built |
+| `active` | Index is ready for use |
+| `failed` | Index creation failed |
+
+---
+
+## Create Index
+
+Creates a new index on a collection field.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/db/databases/:databaseId/collections/:collectionId/indexes
+```
+
+### Path Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `databaseId` | Database identifier |
+| `collectionId` | Collection identifier |
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `field` | string | Yes | Field to index |
+| `type` | string | No | Index type: `btree` (default), `hash`, `gin` |
+| `unique` | boolean | No | Enforce unique values |
+
+### Index Types
+
+| Type | Use Case |
+|------|----------|
+| `btree` | Default, good for ranges and sorting |
+| `hash` | Equality comparisons only |
+| `gin` | Full-text search and arrays |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_users/indexes" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your_api_key" \
+  -d '{
+    "field": "email",
+    "unique": true
+  }'
+```
+
+### JavaScript Example
+
+```javascript
+const response = await fetch(
+  '<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_users/indexes',
+  {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': 'your_api_key',
+    },
+    body: JSON.stringify({
+      field: 'email',
+      unique: true,
+    }),
+  }
+);
+
+const { index } = await response.json();
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "index": {
+    "id": "idx_abc123",
+    "field": "email",
+    "type": "btree",
+    "unique": true,
+    "status": "pending",
+    "createdAt": "2024-01-15T10:30:00.000Z"
+  }
+}
+```
+
+---
+
+## List Indexes
+
+Returns all indexes for a collection.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/db/databases/:databaseId/collections/:collectionId/indexes
+```
+
+### Path Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `databaseId` | Database identifier |
+| `collectionId` | Collection identifier |
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_users/indexes" \
+  -H "X-API-Key: your_api_key"
+```
+
+### JavaScript Example
+
+```javascript
+const response = await fetch(
+  '<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_users/indexes',
+  {
+    headers: {
+      'X-API-Key': 'your_api_key',
+    },
+  }
+);
+
+const { indexes } = await response.json();
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "indexes": [
+    {
+      "id": "idx_abc123",
+      "field": "email",
+      "type": "btree",
+      "unique": true,
+      "status": "active",
+      "size": 1048576,
+      "createdAt": "2024-01-15T10:30:00.000Z"
+    },
+    {
+      "id": "idx_def456",
+      "field": "createdAt",
+      "type": "btree",
+      "unique": false,
+      "status": "active",
+      "size": 524288,
+      "createdAt": "2024-01-15T11:00:00.000Z"
+    }
+  ],
+  "total": 2
+}
+```
+
+---
+
+## Delete Index
+
+Removes an index from a collection.
+
+### Endpoint
+
+```
+DELETE <API_ENDPOINT>/api/v1/db/databases/:databaseId/collections/:collectionId/indexes/:indexId
+```
+
+### Path Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `databaseId` | Database identifier |
+| `collectionId` | Collection identifier |
+| `indexId` | Index identifier |
+
+### Example Request
+
+```bash
+curl -X DELETE "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_users/indexes/idx_abc123" \
+  -H "X-API-Key: your_api_key"
+```
+
+### JavaScript Example
+
+```javascript
+const response = await fetch(
+  '<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_users/indexes/idx_abc123',
+  {
+    method: 'DELETE',
+    headers: {
+      'X-API-Key': 'your_api_key',
+    },
+  }
+);
+
+const result = await response.json();
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Index deleted successfully"
+}
+```
+
+---
+
+## Indexing Best Practices
+
+### When to Create Indexes
+
+1. **Frequently queried fields** - Fields used in filters
+2. **Sort fields** - Fields used in `orderBy`
+3. **Unique fields** - Email, username, etc.
+4. **Foreign keys** - Relationship fields
+
+### When NOT to Create Indexes
+
+1. **Rarely queried fields** - Indexes have storage overhead
+2. **High-write collections** - Indexes slow down writes
+3. **Low-cardinality fields** - Boolean fields rarely benefit
+4. **Small collections** - Under 1000 documents may not benefit
+
+### Index Selection Examples
+
+```javascript
+// Good: Frequently filtered field
+await createIndex('users', 'email', { unique: true });
+
+// Good: Sort field
+await createIndex('posts', 'createdAt');
+
+// Good: Range queries
+await createIndex('products', 'price');
+
+// Good: Full-text search
+await createIndex('articles', 'content', { type: 'gin' });
+
+// Bad: Boolean with only 2 values
+// await createIndex('users', 'isActive'); // Usually not needed
+
+// Bad: Field that changes frequently
+// await createIndex('sessions', 'lastActivity'); // High write cost
+```
+
+### Monitoring Index Usage
+
+Check the [Slow Queries API](/docs/api/slow-queries) to identify queries that might benefit from indexes:
+
+```javascript
+// Get slow queries to identify indexing opportunities
+const response = await fetch(
+  '<API_ENDPOINT>/api/v1/db/databases/db_abc123/slow-queries',
+  {
+    headers: { 'X-API-Key': 'your_api_key' },
+  }
+);
+
+const { queries } = await response.json();
+
+// Check suggestions for index recommendations
+queries.forEach((query) => {
+  if (query.suggestion?.includes('index')) {
+    console.log(`Consider index for: ${query.collection} on ${query.field}`);
+  }
+});
+```
+
+---
+
+## Error Responses
+
+### 400 Bad Request
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid index type"
+  }
+}
+```
+
+### 409 Conflict
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "INDEX_EXISTS",
+    "message": "An index on this field already exists"
+  }
+}
+```

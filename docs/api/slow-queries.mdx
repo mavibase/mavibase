@@ -1,0 +1,310 @@
+---
+title: Slow Queries
+description: API reference for monitoring and analyzing slow database queries
+readTime: 4
+relatedTo:
+  - querying
+  - indexes
+---
+
+# Slow Queries API
+
+Mavibase automatically detects and logs slow queries to help you optimize database performance. Slow query logs are retained for 30 days.
+
+## Authentication
+
+All slow query endpoints require an API key with appropriate scopes:
+
+| Scope | Required For |
+|-------|--------------|
+| `databases:read` | GET requests |
+| `databases:delete` | DELETE requests |
+
+---
+
+## List Slow Queries
+
+Returns slow queries for a database, sorted by most recent.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/db/databases/:databaseId/slow-queries
+```
+
+### Path Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `databaseId` | Database identifier |
+
+### Query Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit` | integer | 50 | Maximum results to return |
+| `offset` | integer | 0 | Number of results to skip |
+| `collection` | string | - | Filter by collection |
+| `minDuration` | integer | - | Minimum duration in ms |
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases/db_abc123/slow-queries?limit=20" \
+  -H "X-API-Key: your_api_key"
+```
+
+### JavaScript Example
+
+```javascript
+const response = await fetch(
+  '<API_ENDPOINT>/api/v1/db/databases/db_abc123/slow-queries?limit=20',
+  {
+    headers: {
+      'X-API-Key': 'your_api_key',
+    },
+  }
+);
+
+const { queries } = await response.json();
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "queries": [
+    {
+      "id": "sq_abc123",
+      "collection": "users",
+      "operation": "find",
+      "query": {
+        "filters": { "email": { "contains": "gmail" } },
+        "orderBy": "createdAt"
+      },
+      "duration": 1250,
+      "documentsScanned": 50000,
+      "documentsReturned": 150,
+      "suggestion": "Consider adding an index on 'email' field",
+      "timestamp": "2024-01-15T10:30:00.000Z"
+    },
+    {
+      "id": "sq_def456",
+      "collection": "posts",
+      "operation": "find",
+      "query": {
+        "filters": { "status": { "equal": "published" } },
+        "orderBy": "publishedAt"
+      },
+      "duration": 890,
+      "documentsScanned": 25000,
+      "documentsReturned": 500,
+      "suggestion": "Consider adding an index on 'publishedAt' field for sorting",
+      "timestamp": "2024-01-15T09:15:00.000Z"
+    }
+  ],
+  "total": 45
+}
+```
+
+---
+
+## Get Slow Query Statistics
+
+Returns aggregated statistics about slow queries.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/db/databases/:databaseId/slow-queries/stats
+```
+
+### Path Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `databaseId` | Database identifier |
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases/db_abc123/slow-queries/stats" \
+  -H "X-API-Key: your_api_key"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "stats": {
+    "totalQueries": 245,
+    "averageDuration": 856,
+    "maxDuration": 5200,
+    "queriesLast24h": 12,
+    "queriesLast7d": 89,
+    "byCollection": [
+      {
+        "collection": "users",
+        "count": 120,
+        "averageDuration": 950
+      },
+      {
+        "collection": "posts",
+        "count": 85,
+        "averageDuration": 720
+      }
+    ],
+    "byOperation": [
+      {
+        "operation": "find",
+        "count": 200
+      },
+      {
+        "operation": "count",
+        "count": 45
+      }
+    ],
+    "topSuggestions": [
+      {
+        "suggestion": "Add index on 'email' field",
+        "count": 45
+      },
+      {
+        "suggestion": "Add index on 'createdAt' field",
+        "count": 32
+      }
+    ]
+  }
+}
+```
+
+---
+
+## Clear Slow Query Logs
+
+Deletes all slow query logs for a database.
+
+### Endpoint
+
+```
+DELETE <API_ENDPOINT>/api/v1/db/databases/:databaseId/slow-queries
+```
+
+### Path Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `databaseId` | Database identifier |
+
+### Example Request
+
+```bash
+curl -X DELETE "<API_ENDPOINT>/api/v1/db/databases/db_abc123/slow-queries" \
+  -H "X-API-Key: your_api_key"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Slow query logs cleared",
+  "deletedCount": 245
+}
+```
+
+---
+
+## Understanding Slow Queries
+
+### What Makes a Query Slow?
+
+Mavibase flags queries as slow when:
+
+- Execution time exceeds 500ms
+- Full collection scan is performed (no index used)
+- High ratio of scanned to returned documents
+
+### Common Causes
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Missing index | Filtering without index | Create index on filtered field |
+| Large result set | No limit specified | Add limit to query |
+| Complex filters | Multiple OR conditions | Simplify query or add indexes |
+| Sorting without index | orderBy on unindexed field | Create index for sort field |
+| Full-text search | search operator on large text | Consider dedicated search index |
+
+### Optimization Workflow
+
+```javascript
+async function analyzeAndOptimize(databaseId) {
+  // 1. Get slow query stats
+  const statsResponse = await fetch(
+    `<API_ENDPOINT>/api/v1/db/databases/${databaseId}/slow-queries/stats`,
+    {
+      headers: { 'X-API-Key': 'your_api_key' },
+    }
+  );
+  const { stats } = await statsResponse.json();
+
+  // 2. Identify problematic collections
+  const problematicCollections = stats.byCollection
+    .filter((c) => c.count > 10)
+    .sort((a, b) => b.averageDuration - a.averageDuration);
+
+  // 3. Apply top suggestions
+  for (const suggestion of stats.topSuggestions.slice(0, 3)) {
+    console.log(`Recommendation: ${suggestion.suggestion} (${suggestion.count} occurrences)`);
+  }
+
+  // 4. Create recommended indexes
+  // Example: Create index based on suggestion
+  // await createIndex(databaseId, collectionId, fieldName);
+
+  return {
+    collections: problematicCollections,
+    suggestions: stats.topSuggestions,
+  };
+}
+```
+
+### Monitoring Dashboard Example
+
+```javascript
+async function getPerformanceMetrics(databaseId) {
+  const [slowQueries, stats] = await Promise.all([
+    fetch(
+      `<API_ENDPOINT>/api/v1/db/databases/${databaseId}/slow-queries?limit=10`,
+      { headers: { 'X-API-Key': 'your_api_key' } }
+    ).then((r) => r.json()),
+    fetch(
+      `<API_ENDPOINT>/api/v1/db/databases/${databaseId}/slow-queries/stats`,
+      { headers: { 'X-API-Key': 'your_api_key' } }
+    ).then((r) => r.json()),
+  ]);
+
+  return {
+    recentSlowQueries: slowQueries.queries,
+    summary: {
+      total: stats.stats.totalQueries,
+      last24h: stats.stats.queriesLast24h,
+      avgDuration: `${stats.stats.averageDuration}ms`,
+      worstCollection: stats.stats.byCollection[0]?.collection,
+    },
+    recommendations: stats.stats.topSuggestions,
+  };
+}
+```
+
+---
+
+## Slow Query Thresholds
+
+| Duration | Severity | Action |
+|----------|----------|--------|
+| 500-1000ms | Warning | Review query |
+| 1000-2000ms | High | Add index |
+| > 2000ms | Critical | Immediate optimization needed |

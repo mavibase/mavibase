@@ -1,0 +1,425 @@
+---
+title: Database Roles
+description: API reference for managing database-level roles and permissions
+readTime: 6
+relatedTo:
+  - permissions
+  - documents
+  - collections
+---
+
+# Database Roles API
+
+Roles allow you to define custom permission groups for end-users of your application. Assign roles to users to control their access to data.
+
+## Authentication
+
+All role endpoints require an API key with appropriate scopes:
+
+| Scope | Required For |
+|-------|--------------|
+| `databases:read` | GET requests |
+| `databases:write` | POST, PATCH requests |
+| `databases:delete` | DELETE requests |
+
+---
+
+## Create Role
+
+Creates a new role in a database.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/db/databases/:databaseId/roles
+```
+
+### Path Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `databaseId` | Database identifier |
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Role name (e.g., "moderator") |
+| `description` | string | No | Role description |
+| `permissions` | array | No | Default permissions for role |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/db/databases/db_abc123/roles" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your_api_key" \
+  -d '{
+    "name": "moderator",
+    "description": "Can moderate content",
+    "permissions": ["read", "update"]
+  }'
+```
+
+### JavaScript Example
+
+```javascript
+const response = await fetch(
+  '<API_ENDPOINT>/api/v1/db/databases/db_abc123/roles',
+  {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': 'your_api_key',
+    },
+    body: JSON.stringify({
+      name: 'moderator',
+      description: 'Can moderate content',
+      permissions: ['read', 'update'],
+    }),
+  }
+);
+
+const { role } = await response.json();
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "role": {
+    "id": "role_abc123",
+    "name": "moderator",
+    "description": "Can moderate content",
+    "permissions": ["read", "update"],
+    "createdAt": "2024-01-15T10:30:00.000Z"
+  }
+}
+```
+
+---
+
+## List Roles
+
+Returns all roles in a database.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/db/databases/:databaseId/roles
+```
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases/db_abc123/roles" \
+  -H "X-API-Key: your_api_key"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "roles": [
+    {
+      "id": "role_abc123",
+      "name": "moderator",
+      "description": "Can moderate content",
+      "memberCount": 5
+    },
+    {
+      "id": "role_def456",
+      "name": "analyst",
+      "description": "Read-only access for analytics",
+      "memberCount": 3
+    }
+  ],
+  "total": 2
+}
+```
+
+---
+
+## Get Role
+
+Retrieves a specific role.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/db/databases/:databaseId/roles/:roleId
+```
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases/db_abc123/roles/role_abc123" \
+  -H "X-API-Key: your_api_key"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "role": {
+    "id": "role_abc123",
+    "name": "moderator",
+    "description": "Can moderate content",
+    "permissions": ["read", "update"],
+    "memberCount": 5,
+    "createdAt": "2024-01-15T10:30:00.000Z",
+    "updatedAt": "2024-01-15T10:30:00.000Z"
+  }
+}
+```
+
+---
+
+## Update Role
+
+Updates a role's properties.
+
+### Endpoint
+
+```
+PATCH <API_ENDPOINT>/api/v1/db/databases/:databaseId/roles/:roleId
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | No | New role name |
+| `description` | string | No | New description |
+| `permissions` | array | No | New permissions |
+
+### Example Request
+
+```bash
+curl -X PATCH "<API_ENDPOINT>/api/v1/db/databases/db_abc123/roles/role_abc123" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your_api_key" \
+  -d '{
+    "permissions": ["read", "update", "delete"]
+  }'
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "role": {
+    "id": "role_abc123",
+    "name": "moderator",
+    "permissions": ["read", "update", "delete"],
+    "updatedAt": "2024-01-15T12:00:00.000Z"
+  }
+}
+```
+
+---
+
+## Delete Role
+
+Deletes a role. Members will lose permissions granted by this role.
+
+### Endpoint
+
+```
+DELETE <API_ENDPOINT>/api/v1/db/databases/:databaseId/roles/:roleId
+```
+
+### Example Request
+
+```bash
+curl -X DELETE "<API_ENDPOINT>/api/v1/db/databases/db_abc123/roles/role_abc123" \
+  -H "X-API-Key: your_api_key"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Role deleted successfully"
+}
+```
+
+---
+
+## List Role Members
+
+Returns all users assigned to a role.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/db/databases/:databaseId/roles/:roleId/members
+```
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases/db_abc123/roles/role_abc123/members" \
+  -H "X-API-Key: your_api_key"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "members": [
+    {
+      "userId": "usr_abc123",
+      "assignedAt": "2024-01-15T10:30:00.000Z",
+      "expiresAt": null
+    },
+    {
+      "userId": "usr_def456",
+      "assignedAt": "2024-01-16T09:00:00.000Z",
+      "expiresAt": "2024-02-16T09:00:00.000Z"
+    }
+  ],
+  "total": 2
+}
+```
+
+---
+
+## Assign Role to User
+
+Assigns a role to a user.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/db/databases/:databaseId/roles/:roleId/members
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `userId` | string | Yes | User identifier |
+| `expiresAt` | string | No | ISO 8601 expiration date |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/db/databases/db_abc123/roles/role_abc123/members" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your_api_key" \
+  -d '{
+    "userId": "usr_xyz789",
+    "expiresAt": "2024-12-31T23:59:59.000Z"
+  }'
+```
+
+### JavaScript Example
+
+```javascript
+const response = await fetch(
+  '<API_ENDPOINT>/api/v1/db/databases/db_abc123/roles/role_abc123/members',
+  {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': 'your_api_key',
+    },
+    body: JSON.stringify({
+      userId: 'usr_xyz789',
+      expiresAt: '2024-12-31T23:59:59.000Z',
+    }),
+  }
+);
+
+const result = await response.json();
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "assignment": {
+    "roleId": "role_abc123",
+    "userId": "usr_xyz789",
+    "assignedAt": "2024-01-15T10:30:00.000Z",
+    "expiresAt": "2024-12-31T23:59:59.000Z"
+  }
+}
+```
+
+---
+
+## Remove Role from User
+
+Removes a role assignment from a user.
+
+### Endpoint
+
+```
+DELETE <API_ENDPOINT>/api/v1/db/databases/:databaseId/roles/:roleId/members/:userId
+```
+
+### Example Request
+
+```bash
+curl -X DELETE "<API_ENDPOINT>/api/v1/db/databases/db_abc123/roles/role_abc123/members/usr_xyz789" \
+  -H "X-API-Key: your_api_key"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Role removed from user"
+}
+```
+
+---
+
+## Using Roles in Permissions
+
+Roles can be referenced in collection and document permissions:
+
+```javascript
+// Create collection with role-based permissions
+await fetch(
+  '<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections',
+  {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': 'your_api_key',
+    },
+    body: JSON.stringify({
+      name: 'posts',
+      permissions: {
+        read: ['any'],
+        create: ['user:*'],
+        update: ['role:moderator', 'owner'],
+        delete: ['role:admin'],
+      },
+    }),
+  }
+);
+```
+
+### Permission Types
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `any` | Anyone (public) | `"any"` |
+| `user:*` | Any authenticated user | `"user:*"` |
+| `user:{id}` | Specific user | `"user:usr_abc123"` |
+| `role:{name}` | Users with role | `"role:moderator"` |
+| `owner` | Document owner | `"owner"` |
+
+See the [Permissions Guide](/docs/concepts/permissions) for more details.

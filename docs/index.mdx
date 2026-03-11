@@ -1,0 +1,97 @@
+---
+title: Mavibase Documentation
+description: Complete documentation for the Mavibase Backend as a Service platform
+readTime: 2
+relatedTo:
+  - getting-started
+  - databases
+  - authentication
+---
+
+# Mavibase Documentation
+
+Welcome to the official Mavibase documentation. Mavibase is an open-source Backend as a Service (BaaS) platform that provides everything you need to build modern applications.
+
+## Overview
+
+Mavibase offers a complete backend solution including:
+
+- **Databases** - Document database with flexible schemas and powerful querying
+- **Authentication** - Complete user authentication with MFA support
+- **Teams & Projects** - Multi-tenant organization with role-based access
+- **API Keys** - Secure API key management with granular scopes
+- **Real-time** - Real-time subscriptions (coming soon)
+
+## Quick Links
+
+### Getting Started
+
+- [Quick Start Guide](/docs/getting-started/quickstart)
+- [Installation](/docs/getting-started/installation)
+- [Authentication Guide](/docs/getting-started/authentication)
+
+### Database API
+
+- [Databases](/docs/api/databases)
+- [Collections](/docs/api/collections)
+- [Documents](/docs/api/documents)
+- [Querying](/docs/api/querying)
+- [Indexes](/docs/api/indexes)
+- [Transactions](/docs/api/transactions)
+
+### Platform API
+
+- [Authentication](/docs/api/auth)
+- [Users](/docs/api/users)
+- [Teams](/docs/api/teams)
+- [Projects](/docs/api/projects)
+- [API Keys](/docs/api/api-keys)
+- [Sessions](/docs/api/sessions)
+
+### Concepts
+
+- [Data Modeling](/docs/concepts/data-modeling)
+- [Permissions](/docs/concepts/permissions)
+- [Relationships](/docs/concepts/relationships)
+- [Schema Validation](/docs/concepts/schema-validation)
+
+## Base URLs
+
+All API requests should be made to:
+
+```
+Database API: <API_ENDPOINT>/api/v1/db
+Platform API: <API_ENDPOINT>/api/v1/platform
+```
+
+## Authentication
+
+Mavibase supports two authentication methods:
+
+1. **JWT Tokens** - For user sessions (Platform API)
+2. **API Keys** - For programmatic access (Database API)
+
+```bash
+# Using API Key
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases" \
+  -H "X-API-Key: your_api_key"
+
+# Using JWT Token
+curl -X GET "<API_ENDPOINT>/api/v1/platform/users/me" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+## SDKs
+
+Official SDKs are coming soon:
+
+- JavaScript/TypeScript SDK
+- PHP SDK
+- Python SDK
+- Flutter SDK
+
+## Support
+
+- [GitHub Issues](https://github.com/mavibase/mavibase/issues)
+- [Telegram Community](https://t.me/Mavibase)
+- [LinkedIn](https://www.linkedin.com/company/mavibase)

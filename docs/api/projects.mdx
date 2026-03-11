@@ -1,0 +1,480 @@
+---
+title: Projects
+description: API reference for project management
+readTime: 7
+relatedTo:
+  - teams
+  - api-keys
+  - databases
+---
+
+# Projects API
+
+Projects are isolated environments within teams. Each project has its own databases, API keys, and configuration.
+
+## Authentication
+
+All project endpoints require JWT authentication:
+
+```
+Authorization: Bearer your_jwt_token
+```
+
+---
+
+## Create Project
+
+Creates a new project within a team.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/platform/projects
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Project name |
+| `teamId` | string | Yes | Parent team ID |
+| `description` | string | No | Project description |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/projects" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_jwt_token" \
+  -d '{
+    "name": "Production API",
+    "teamId": "team_abc123",
+    "description": "Main production backend"
+  }'
+```
+
+### JavaScript Example
+
+```javascript
+const response = await fetch('<API_ENDPOINT>/api/v1/platform/projects', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  },
+  body: JSON.stringify({
+    name: 'Production API',
+    teamId: 'team_abc123',
+    description: 'Main production backend',
+  }),
+});
+
+const { project } = await response.json();
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "project": {
+    "id": "prj_xyz789",
+    "name": "Production API",
+    "teamId": "team_abc123",
+    "description": "Main production backend",
+    "createdAt": "2024-01-15T10:30:00.000Z"
+  }
+}
+```
+
+---
+
+## List Team Projects
+
+Returns all projects for a specific team.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/platform/projects/team/:teamId
+```
+
+### Path Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `teamId` | Team identifier |
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/platform/projects/team/team_abc123" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "projects": [
+    {
+      "id": "prj_xyz789",
+      "name": "Production API",
+      "description": "Main production backend",
+      "databaseCount": 3,
+      "createdAt": "2024-01-15T10:30:00.000Z"
+    },
+    {
+      "id": "prj_def456",
+      "name": "Staging",
+      "description": "Staging environment",
+      "databaseCount": 2,
+      "createdAt": "2024-01-16T09:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+## Get Project
+
+Retrieves a specific project by ID.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/platform/projects/:projectId
+```
+
+### Path Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `projectId` | Project identifier |
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/platform/projects/prj_xyz789" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "project": {
+    "id": "prj_xyz789",
+    "name": "Production API",
+    "teamId": "team_abc123",
+    "description": "Main production backend",
+    "databaseCount": 3,
+    "apiKeyCount": 2,
+    "createdAt": "2024-01-15T10:30:00.000Z",
+    "updatedAt": "2024-01-15T10:30:00.000Z"
+  }
+}
+```
+
+---
+
+## Update Project
+
+Updates a project's properties.
+
+### Endpoint
+
+```
+PATCH <API_ENDPOINT>/api/v1/platform/projects/:projectId
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | No | New project name |
+| `description` | string | No | New description |
+
+### Example Request
+
+```bash
+curl -X PATCH "<API_ENDPOINT>/api/v1/platform/projects/prj_xyz789" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_jwt_token" \
+  -d '{
+    "name": "Production API v2",
+    "description": "Updated production backend"
+  }'
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "project": {
+    "id": "prj_xyz789",
+    "name": "Production API v2",
+    "description": "Updated production backend",
+    "updatedAt": "2024-01-15T12:00:00.000Z"
+  }
+}
+```
+
+---
+
+## Delete Project
+
+Permanently deletes a project and all its resources.
+
+### Endpoint
+
+```
+DELETE <API_ENDPOINT>/api/v1/platform/projects/:projectId
+```
+
+### Example Request
+
+```bash
+curl -X DELETE "<API_ENDPOINT>/api/v1/platform/projects/prj_xyz789" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Project deleted successfully"
+}
+```
+
+**Warning**: This action is irreversible. All databases, collections, documents, and API keys in this project will be deleted.
+
+---
+
+## Get Project Statistics
+
+Retrieves usage statistics for a project.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/platform/projects/:projectId/stats
+```
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/platform/projects/prj_xyz789/stats" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "stats": {
+    "databaseCount": 3,
+    "collectionCount": 12,
+    "documentCount": 45000,
+    "totalSize": 104857600,
+    "apiKeyCount": 2,
+    "activeApiKeys": 2
+  }
+}
+```
+
+---
+
+## Get Project Usage
+
+Retrieves usage metrics for a project.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/platform/projects/:projectId/usage
+```
+
+### Query Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `period` | string | `month` | Time period: `day`, `week`, `month` |
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/platform/projects/prj_xyz789/usage?period=month" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "usage": {
+    "period": "2024-01",
+    "requests": {
+      "total": 125000,
+      "reads": 100000,
+      "writes": 25000
+    },
+    "bandwidth": {
+      "total": 1073741824,
+      "ingress": 268435456,
+      "egress": 805306368
+    },
+    "storage": {
+      "total": 104857600,
+      "databases": 94371840,
+      "indexes": 10485760
+    }
+  }
+}
+```
+
+---
+
+## Get Project Activity
+
+Retrieves recent activity for a project.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/platform/projects/:projectId/activity
+```
+
+### Query Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit` | integer | 50 | Maximum results |
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/platform/projects/prj_xyz789/activity" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "activity": [
+    {
+      "action": "database.created",
+      "userId": "usr_abc123",
+      "userName": "John Doe",
+      "details": {
+        "databaseName": "users-db"
+      },
+      "timestamp": "2024-01-15T10:30:00.000Z"
+    },
+    {
+      "action": "collection.created",
+      "userId": "usr_abc123",
+      "userName": "John Doe",
+      "details": {
+        "collectionName": "profiles"
+      },
+      "timestamp": "2024-01-15T10:35:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+## Get Project Time Series
+
+Retrieves time series data for a project.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/platform/projects/:projectId/time-series
+```
+
+### Query Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `metric` | string | `requests` | Metric: `requests`, `bandwidth`, `storage` |
+| `period` | string | `day` | Period: `hour`, `day`, `week` |
+| `range` | string | `7d` | Time range: `24h`, `7d`, `30d` |
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/platform/projects/prj_xyz789/time-series?metric=requests&range=7d" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "timeSeries": {
+    "metric": "requests",
+    "period": "day",
+    "data": [
+      { "timestamp": "2024-01-09T00:00:00Z", "value": 15000 },
+      { "timestamp": "2024-01-10T00:00:00Z", "value": 18000 },
+      { "timestamp": "2024-01-11T00:00:00Z", "value": 22000 },
+      { "timestamp": "2024-01-12T00:00:00Z", "value": 19000 },
+      { "timestamp": "2024-01-13T00:00:00Z", "value": 12000 },
+      { "timestamp": "2024-01-14T00:00:00Z", "value": 10000 },
+      { "timestamp": "2024-01-15T00:00:00Z", "value": 29000 }
+    ]
+  }
+}
+```
+
+---
+
+## Get Egress Breakdown
+
+Retrieves bandwidth egress breakdown by source.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/platform/projects/:projectId/egress-breakdown
+```
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/platform/projects/prj_xyz789/egress-breakdown" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "egressBreakdown": {
+    "total": 805306368,
+    "byDatabase": [
+      { "databaseId": "db_abc123", "name": "users-db", "egress": 536870912 },
+      { "databaseId": "db_def456", "name": "posts-db", "egress": 268435456 }
+    ],
+    "byOperation": [
+      { "operation": "read", "egress": 724775731 },
+      { "operation": "list", "egress": 80530637 }
+    ]
+  }
+}
+```

@@ -1,0 +1,433 @@
+---
+title: API Keys
+description: API reference for managing API keys
+readTime: 6
+relatedTo:
+  - authentication
+  - projects
+---
+
+# API Keys API
+
+API keys provide programmatic access to the Database API. Each key is scoped to a specific project and can have granular permissions.
+
+## Authentication
+
+All API key management endpoints require JWT authentication:
+
+```
+Authorization: Bearer your_jwt_token
+```
+
+---
+
+## Create API Key
+
+Creates a new API key for a project.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/platform/api-keys
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Descriptive name for the key |
+| `projectId` | string | Yes | Project to associate with |
+| `scopes` | array | Yes | Permission scopes |
+| `expiresAt` | string | No | Expiration date (ISO 8601) |
+
+### Available Scopes
+
+| Scope | Description |
+|-------|-------------|
+| `databases:read` | Read databases, collections, documents |
+| `databases:write` | Create and update data |
+| `databases:delete` | Delete data |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/api-keys" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_jwt_token" \
+  -d '{
+    "name": "Production Server Key",
+    "projectId": "prj_xyz789",
+    "scopes": ["databases:read", "databases:write", "databases:delete"]
+  }'
+```
+
+### JavaScript Example
+
+```javascript
+const response = await fetch('<API_ENDPOINT>/api/v1/platform/api-keys', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  },
+  body: JSON.stringify({
+    name: 'Production Server Key',
+    projectId: 'prj_xyz789',
+    scopes: ['databases:read', 'databases:write', 'databases:delete'],
+  }),
+});
+
+const { apiKey } = await response.json();
+
+// Store the key securely - it won't be shown again!
+console.log('API Key:', apiKey.key);
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "apiKey": {
+    "id": "key_abc123",
+    "key": "mb_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "name": "Production Server Key",
+    "projectId": "prj_xyz789",
+    "scopes": ["databases:read", "databases:write", "databases:delete"],
+    "createdAt": "2024-01-15T10:30:00.000Z"
+  }
+}
+```
+
+**Important**: The `key` value is only returned once during creation. Store it securely as it cannot be retrieved again.
+
+---
+
+## List API Keys
+
+Returns all API keys for a project.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/platform/api-keys/project/:projectId
+```
+
+### Path Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `projectId` | Project identifier |
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/platform/api-keys/project/prj_xyz789" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "apiKeys": [
+    {
+      "id": "key_abc123",
+      "name": "Production Server Key",
+      "scopes": ["databases:read", "databases:write", "databases:delete"],
+      "lastUsed": "2024-01-15T14:30:00.000Z",
+      "status": "active",
+      "createdAt": "2024-01-15T10:30:00.000Z"
+    },
+    {
+      "id": "key_def456",
+      "name": "Read-Only Analytics",
+      "scopes": ["databases:read"],
+      "lastUsed": "2024-01-15T12:00:00.000Z",
+      "status": "active",
+      "createdAt": "2024-01-14T09:00:00.000Z"
+    }
+  ]
+}
+```
+
+**Note**: The actual key values are not returned in list operations for security.
+
+---
+
+## Update API Key
+
+Updates an API key's properties.
+
+### Endpoint
+
+```
+PUT <API_ENDPOINT>/api/v1/platform/api-keys/:keyId
+```
+
+### Path Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `keyId` | API key identifier |
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | No | New name |
+| `scopes` | array | No | New scopes |
+
+### Example Request
+
+```bash
+curl -X PUT "<API_ENDPOINT>/api/v1/platform/api-keys/key_abc123" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_jwt_token" \
+  -d '{
+    "name": "Production Key (Updated)",
+    "scopes": ["databases:read", "databases:write"]
+  }'
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "apiKey": {
+    "id": "key_abc123",
+    "name": "Production Key (Updated)",
+    "scopes": ["databases:read", "databases:write"],
+    "updatedAt": "2024-01-15T12:00:00.000Z"
+  }
+}
+```
+
+---
+
+## Rotate API Key
+
+Generates a new key value while keeping the same key ID and settings.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/platform/api-keys/:keyId/rotate
+```
+
+### Path Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `keyId` | API key identifier |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/api-keys/key_abc123/rotate" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### JavaScript Example
+
+```javascript
+const response = await fetch(
+  '<API_ENDPOINT>/api/v1/platform/api-keys/key_abc123/rotate',
+  {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  }
+);
+
+const { apiKey } = await response.json();
+
+// Update your application with the new key
+console.log('New API Key:', apiKey.key);
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "apiKey": {
+    "id": "key_abc123",
+    "key": "mb_live_yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+    "name": "Production Server Key",
+    "rotatedAt": "2024-01-15T12:00:00.000Z"
+  },
+  "message": "API key rotated. The old key is now invalid."
+}
+```
+
+**Important**: After rotation, the old key immediately becomes invalid. Update your applications before rotating.
+
+---
+
+## Revoke API Key
+
+Temporarily disables an API key without deleting it.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/platform/api-keys/:keyId/revoke
+```
+
+### Path Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `keyId` | API key identifier |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/api-keys/key_abc123/revoke" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "apiKey": {
+    "id": "key_abc123",
+    "status": "revoked",
+    "revokedAt": "2024-01-15T12:00:00.000Z"
+  },
+  "message": "API key revoked"
+}
+```
+
+---
+
+## Delete API Key
+
+Permanently deletes an API key.
+
+### Endpoint
+
+```
+DELETE <API_ENDPOINT>/api/v1/platform/api-keys/:keyId
+```
+
+### Path Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `keyId` | API key identifier |
+
+### Example Request
+
+```bash
+curl -X DELETE "<API_ENDPOINT>/api/v1/platform/api-keys/key_abc123" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "API key deleted"
+}
+```
+
+---
+
+## Using API Keys
+
+Once created, use the API key to authenticate Database API requests:
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases" \
+  -H "X-API-Key: mb_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+```
+
+### JavaScript Example
+
+```javascript
+class MavibaseClient {
+  constructor(apiKey) {
+    this.apiKey = apiKey;
+    this.baseUrl = '<API_ENDPOINT>/api/v1/db';
+  }
+
+  async request(endpoint, options = {}) {
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': this.apiKey,
+        ...options.headers,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Request failed');
+    }
+
+    return response.json();
+  }
+
+  // Database operations
+  async listDatabases() {
+    return this.request('/databases');
+  }
+
+  async createDocument(databaseId, collectionId, data) {
+    return this.request(
+      `/databases/${databaseId}/collections/${collectionId}/documents`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ data }),
+      }
+    );
+  }
+}
+
+// Usage
+const client = new MavibaseClient('mb_live_xxx');
+const databases = await client.listDatabases();
+```
+
+### Node.js Example
+
+```javascript
+const axios = require('axios');
+
+const mavibase = axios.create({
+  baseURL: '<API_ENDPOINT>/api/v1/db',
+  headers: {
+    'X-API-Key': process.env.MAVIBASE_API_KEY,
+    'Content-Type': 'application/json',
+  },
+});
+
+// List databases
+const { data: databases } = await mavibase.get('/databases');
+
+// Create document
+const { data: document } = await mavibase.post(
+  '/databases/db_id/collections/col_id/documents',
+  { data: { name: 'John' } }
+);
+```
+
+---
+
+## Security Best Practices
+
+1. **Never expose keys in client-side code** - API keys should only be used server-side
+2. **Use minimal scopes** - Only grant the permissions you need
+3. **Rotate keys regularly** - Rotate keys at least every 90 days
+4. **Monitor usage** - Check `lastUsed` to detect unused or compromised keys
+5. **Use separate keys** - Create different keys for different environments/services
+6. **Set expiration** - Use `expiresAt` for temporary access

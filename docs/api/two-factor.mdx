@@ -1,0 +1,407 @@
+---
+title: Two-Factor Authentication
+description: API reference for two-factor authentication (2FA/MFA)
+readTime: 5
+relatedTo:
+  - auth
+  - users
+  - sessions
+---
+
+# Two-Factor Authentication API
+
+Mavibase supports TOTP-based two-factor authentication for enhanced account security.
+
+## Authentication
+
+All 2FA endpoints require JWT authentication except for verification during login:
+
+```
+Authorization: Bearer your_jwt_token
+```
+
+---
+
+## Setup 2FA
+
+Initiates 2FA setup and returns a secret for the authenticator app.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/platform/2fa/setup
+```
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/2fa/setup" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### JavaScript Example
+
+```javascript
+const response = await fetch('<API_ENDPOINT>/api/v1/platform/2fa/setup', {
+  method: 'POST',
+  headers: {
+    Authorization: `Bearer ${token}`,
+  },
+});
+
+const { secret, qrCode } = await response.json();
+
+// Display QR code for user to scan
+console.log('Scan this QR code:', qrCode);
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "secret": "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP",
+  "qrCode": "otpauth://totp/Mavibase:user@example.com?secret=JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP&issuer=Mavibase",
+  "message": "Scan the QR code with your authenticator app, then verify with a code"
+}
+```
+
+---
+
+## Verify 2FA Setup
+
+Completes 2FA setup by verifying a code from the authenticator app.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/platform/2fa/setup/verify
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `code` | string | Yes | 6-digit code from authenticator app |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/2fa/setup/verify" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_jwt_token" \
+  -d '{
+    "code": "123456"
+  }'
+```
+
+### JavaScript Example
+
+```javascript
+const response = await fetch(
+  '<API_ENDPOINT>/api/v1/platform/2fa/setup/verify',
+  {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      code: '123456',
+    }),
+  }
+);
+
+const result = await response.json();
+
+if (result.success) {
+  // Store backup codes securely
+  console.log('Backup codes:', result.backupCodes);
+}
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Two-factor authentication enabled",
+  "backupCodes": [
+    "XXXX-XXXX-XXXX",
+    "YYYY-YYYY-YYYY",
+    "ZZZZ-ZZZZ-ZZZZ",
+    "AAAA-AAAA-AAAA",
+    "BBBB-BBBB-BBBB"
+  ]
+}
+```
+
+**Important**: Store backup codes securely. They can be used to access your account if you lose your authenticator device.
+
+---
+
+## Verify 2FA During Login
+
+Completes login when 2FA is required.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/platform/2fa/verify
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `tempToken` | string | Yes | Temporary token from login response |
+| `code` | string | Yes | 6-digit code from authenticator app |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/2fa/verify" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tempToken": "temp_abc123xyz",
+    "code": "123456"
+  }'
+```
+
+### JavaScript Example
+
+```javascript
+async function loginWith2FA(email, password) {
+  // Step 1: Initial login
+  const loginResponse = await fetch(
+    '<API_ENDPOINT>/api/v1/platform/auth/login',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    }
+  );
+
+  const loginData = await loginResponse.json();
+
+  if (loginData.requires2FA) {
+    // Step 2: Prompt user for 2FA code
+    const code = await promptUserForCode();
+
+    // Step 3: Verify 2FA
+    const verifyResponse = await fetch(
+      '<API_ENDPOINT>/api/v1/platform/2fa/verify',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tempToken: loginData.tempToken,
+          code: code,
+        }),
+      }
+    );
+
+    return verifyResponse.json();
+  }
+
+  return loginData;
+}
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": "usr_abc123",
+    "email": "user@example.com",
+    "name": "John Doe"
+  }
+}
+```
+
+---
+
+## Resend 2FA Code
+
+Resends the 2FA verification code (for email/SMS-based 2FA).
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/platform/2fa/resend
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `tempToken` | string | Yes | Temporary token from login response |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/2fa/resend" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tempToken": "temp_abc123xyz"
+  }'
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Verification code resent"
+}
+```
+
+---
+
+## Request 2FA Disable
+
+Initiates the process to disable 2FA.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/platform/2fa/disable
+```
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/2fa/disable" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Confirm with your authenticator code to disable 2FA"
+}
+```
+
+---
+
+## Confirm 2FA Disable
+
+Completes 2FA disabling by verifying with a code.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/platform/2fa/disable/confirm
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `code` | string | Yes | 6-digit code from authenticator app |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/2fa/disable/confirm" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_jwt_token" \
+  -d '{
+    "code": "123456"
+  }'
+```
+
+### JavaScript Example
+
+```javascript
+async function disable2FA(code) {
+  // Step 1: Request disable
+  await fetch('<API_ENDPOINT>/api/v1/platform/2fa/disable', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  // Step 2: Confirm with code
+  const response = await fetch(
+    '<API_ENDPOINT>/api/v1/platform/2fa/disable/confirm',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ code }),
+    }
+  );
+
+  return response.json();
+}
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Two-factor authentication disabled"
+}
+```
+
+---
+
+## Supported Authenticator Apps
+
+Mavibase 2FA works with any TOTP-compatible authenticator app:
+
+- Google Authenticator
+- Authy
+- 1Password
+- Microsoft Authenticator
+- Bitwarden
+
+---
+
+## Error Responses
+
+### 400 Bad Request
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "INVALID_CODE",
+    "message": "Invalid verification code"
+  }
+}
+```
+
+### 401 Unauthorized
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "EXPIRED_TOKEN",
+    "message": "Temporary token has expired. Please login again."
+  }
+}
+```
+
+### 429 Too Many Requests
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "RATE_LIMITED",
+    "message": "Too many verification attempts. Please try again later.",
+    "retryAfter": 300
+  }
+}
+```

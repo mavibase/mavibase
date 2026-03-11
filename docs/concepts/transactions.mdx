@@ -1,0 +1,359 @@
+# Transactions
+
+Learn about Mavibase's ACID-compliant transactions for ensuring data consistency across multiple operations.
+
+## Overview
+
+Transactions in Mavibase allow you to execute multiple operations atomically, ensuring all succeed or all fail together.
+
+## ACID Guarantees
+
+Mavibase transactions provide:
+
+- **Atomicity**: All operations complete or none do
+- **Consistency**: Database remains in valid state
+- **Isolation**: Concurrent transactions don't interfere
+- **Durability**: Committed data persists
+
+## Basic Transaction
+
+### Starting a Transaction
+
+```bash
+curl -X POST https://<API_ENDPOINT>/api/v1/db/transactions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "description": "Transfer funds between accounts"
+  }'
+```
+
+Response:
+```javascript
+{
+  "id": "txn_123",
+  "status": "active",
+  "startedAt": "2024-01-16T15:00:00Z"
+}
+```
+
+### Adding Operations
+
+Execute operations within a transaction:
+
+```bash
+# Subtract from source account
+curl -X POST https://<API_ENDPOINT>/api/v1/db/documents \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "X-Transaction-ID: txn_123" \
+  -d '{
+    "collection": "accounts",
+    "operation": "update",
+    "documentId": "account_src",
+    "data": {
+      "balance": 900
+    }
+  }'
+
+# Add to destination account
+curl -X POST https://<API_ENDPOINT>/api/v1/db/documents \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "X-Transaction-ID: txn_123" \
+  -d '{
+    "collection": "accounts",
+    "operation": "update",
+    "documentId": "account_dst",
+    "data": {
+      "balance": 1100
+    }
+  }'
+```
+
+### Committing
+
+```bash
+curl -X POST https://<API_ENDPOINT>/api/v1/db/transactions/txn_123/commit \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+### Rolling Back
+
+```bash
+curl -X POST https://<API_ENDPOINT>/api/v1/db/transactions/txn_123/rollback \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+## Transaction Isolation Levels
+
+### Read Uncommitted
+
+- Lowest isolation level
+- Can read uncommitted changes from other transactions
+- Best performance
+
+```javascript
+{
+  "isolationLevel": "read_uncommitted"
+}
+```
+
+### Read Committed
+
+- Default isolation level
+- Only read committed changes
+- Prevents dirty reads
+
+```javascript
+{
+  "isolationLevel": "read_committed"
+}
+```
+
+### Repeatable Read
+
+- Same data seen throughout transaction
+- Prevents dirty and non-repeatable reads
+
+```javascript
+{
+  "isolationLevel": "repeatable_read"
+}
+```
+
+### Serializable
+
+- Strictest isolation
+- Serializes transaction execution
+- Highest consistency, lowest performance
+
+```javascript
+{
+  "isolationLevel": "serializable"
+}
+```
+
+## Common Use Cases
+
+### Fund Transfer
+
+Transfer money between accounts atomically:
+
+```javascript
+async function transferFunds(fromId, toId, amount) {
+  const txn = await client.transactions.begin({
+    description: `Transfer $${amount} from ${fromId} to ${toId}`
+  });
+
+  try {
+    // Debit source
+    await client.documents.update(
+      { collection: 'accounts', id: fromId },
+      { $inc: { balance: -amount } },
+      { transactionId: txn.id }
+    );
+
+    // Credit destination
+    await client.documents.update(
+      { collection: 'accounts', id: toId },
+      { $inc: { balance: amount } },
+      { transactionId: txn.id }
+    );
+
+    await client.transactions.commit(txn.id);
+  } catch (error) {
+    await client.transactions.rollback(txn.id);
+    throw error;
+  }
+}
+```
+
+### Order Processing
+
+Process order with inventory and payment:
+
+```javascript
+async function processOrder(orderId, items, paymentId) {
+  const txn = await client.transactions.begin();
+
+  try {
+    // Update inventory
+    for (const item of items) {
+      await client.documents.update(
+        { collection: 'inventory', id: item.productId },
+        { $inc: { quantity: -item.quantity } },
+        { transactionId: txn.id }
+      );
+    }
+
+    // Create order
+    await client.documents.create(
+      { collection: 'orders' },
+      {
+        items,
+        status: 'confirmed',
+        paymentId
+      },
+      { transactionId: txn.id }
+    );
+
+    // Process payment
+    await client.documents.update(
+      { collection: 'payments', id: paymentId },
+      { status: 'processed' },
+      { transactionId: txn.id }
+    );
+
+    await client.transactions.commit(txn.id);
+  } catch (error) {
+    await client.transactions.rollback(txn.id);
+    throw error;
+  }
+}
+```
+
+### Account Creation
+
+Create account with related data:
+
+```javascript
+async function createAccount(email, profile) {
+  const txn = await client.transactions.begin();
+
+  try {
+    // Create user
+    const user = await client.documents.create(
+      { collection: 'users' },
+      { email, status: 'active' },
+      { transactionId: txn.id }
+    );
+
+    // Create profile
+    await client.documents.create(
+      { collection: 'profiles' },
+      {
+        userId: user._id,
+        ...profile
+      },
+      { transactionId: txn.id }
+    );
+
+    // Create default settings
+    await client.documents.create(
+      { collection: 'settings' },
+      {
+        userId: user._id,
+        theme: 'light',
+        notifications: true
+      },
+      { transactionId: txn.id }
+    );
+
+    await client.transactions.commit(txn.id);
+    return user;
+  } catch (error) {
+    await client.transactions.rollback(txn.id);
+    throw error;
+  }
+}
+```
+
+## Transaction Monitoring
+
+### Viewing Active Transactions
+
+```bash
+curl "https://<API_ENDPOINT>/api/v1/db/transactions?status=active" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+### Transaction History
+
+```bash
+curl "https://<API_ENDPOINT>/api/v1/db/transactions?limit=50" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+### Timeout Management
+
+Set transaction timeout:
+
+```bash
+curl -X POST https://<API_ENDPOINT>/api/v1/db/transactions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -d '{
+    "description": "Long operation",
+    "timeoutMs": 30000
+  }'
+```
+
+## Best Practices
+
+1. **Keep Transactions Short**: Minimize lock duration
+2. **Handle Rollback Errors**: Implement retry logic
+3. **Set Appropriate Timeout**: Prevent hanging transactions
+4. **Use Isolation Levels Wisely**: Balance consistency and performance
+5. **Monitor Long Transactions**: Alert on slow transactions
+6. **Batch Operations**: Group related changes together
+7. **Test Failure Scenarios**: Verify rollback behavior
+8. **Document Critical Sections**: Comment important transaction code
+
+## Performance Considerations
+
+### Lock Contention
+
+Transactions lock affected documents:
+- Minimize duration
+- Access documents in consistent order
+- Use batch operations where possible
+
+### Isolation Level Tradeoff
+
+- **Higher Isolation**: More consistent, slower
+- **Lower Isolation**: Less consistent, faster
+- Choose based on requirements
+
+### Deadlock Prevention
+
+Prevent circular lock waits:
+- Always acquire locks in same order
+- Use shorter transactions
+- Implement exponential backoff retry
+
+## Error Handling
+
+### Transaction Timeout
+
+```javascript
+try {
+  await client.transactions.commit(txn.id);
+} catch (error) {
+  if (error.code === 'TRANSACTION_TIMEOUT') {
+    // Handle timeout - rollback automatically
+  }
+}
+```
+
+### Conflict Errors
+
+```javascript
+try {
+  await client.transactions.commit(txn.id);
+} catch (error) {
+  if (error.code === 'CONFLICT') {
+    // Document modified by another transaction
+    // Retry the entire transaction
+  }
+}
+```
+
+### Rollback Errors
+
+```javascript
+try {
+  await client.transactions.rollback(txn.id);
+} catch (error) {
+  if (error.code === 'ALREADY_COMMITTED') {
+    // Transaction already committed
+  }
+}
+```

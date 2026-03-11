@@ -1,0 +1,251 @@
+# Permissions & Access Control
+
+Understand Mavibase's comprehensive permission system for controlling access to databases, collections, documents, and fields.
+
+## Overview
+
+Mavibase provides multiple layers of access control:
+
+1. **Project-Level**: Team and project access
+2. **Database-Level**: Database permissions by role
+3. **Row-Level Security (RLS)**: Document-level rules
+4. **Field-Level**: Control which fields users can access
+
+## Permission Model
+
+### Project Roles
+
+Define access at the project level:
+
+- **Owner**: Full administrative access
+- **Admin**: Manage databases, users, and settings
+- **Editor**: Create and modify documents
+- **Viewer**: Read-only access
+- **Custom**: Define custom role permissions
+
+### API Key Scopes
+
+API keys support granular scope-based permissions:
+
+```bash
+curl -X POST https://<API_ENDPOINT>/api/v1/platform/api-keys \
+  -H "Authorization: Bearer SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Read-Only API Key",
+    "scopes": [
+      "db:read",
+      "collections:read",
+      "documents:read"
+    ]
+  }'
+```
+
+### Available Scopes
+
+**Database Operations**:
+- `db:create`: Create databases
+- `db:read`: Read database metadata
+- `db:update`: Update database settings
+- `db:delete`: Delete databases
+
+**Collection Operations**:
+- `collections:create`: Create collections
+- `collections:read`: Read collections
+- `collections:update`: Update collection schema
+- `collections:delete`: Delete collections
+
+**Document Operations**:
+- `documents:create`: Create documents
+- `documents:read`: Read documents
+- `documents:update`: Update documents
+- `documents:delete`: Delete documents
+
+**Transaction Operations**:
+- `transactions:create`: Create transactions
+- `transactions:read`: Read transaction history
+
+## Row-Level Security (RLS)
+
+Define dynamic rules to control document access based on attributes:
+
+### Creating Permission Rules
+
+```bash
+curl -X POST https://<API_ENDPOINT>/api/v1/db/permissions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -d '{
+    "collection": "posts",
+    "role": "user",
+    "rules": [
+      {
+        "action": "read",
+        "condition": {
+          "field": "author_id",
+          "operator": "equals",
+          "value": "{{ auth.userId }}"
+        }
+      }
+    ]
+  }'
+```
+
+### Permission Actions
+
+- **read**: View documents
+- **create**: Create new documents
+- **update**: Modify documents
+- **delete**: Delete documents
+
+### Condition Operators
+
+- `equals`: Exact match
+- `notEquals`: Not equal
+- `contains`: String contains
+- `in`: Value in array
+- `gt`: Greater than
+- `gte`: Greater than or equal
+- `lt`: Less than
+- `lte`: Less than or equal
+- `between`: Range check
+
+### Dynamic Variables
+
+Variables replaced at query time:
+
+- `{{ auth.userId }}`: Current user ID
+- `{{ auth.email }}`: Current user email
+- `{{ auth.teamId }}`: Current team ID
+- `{{ auth.projectId }}`: Current project ID
+- `{{ auth.roles }}`: User's roles
+
+### Example: Multi-Tenant Documents
+
+```javascript
+{
+  "collection": "documents",
+  "role": "user",
+  "rules": [
+    {
+      "action": "read",
+      "condition": {
+        "field": "team_id",
+        "operator": "equals",
+        "value": "{{ auth.teamId }}"
+      }
+    },
+    {
+      "action": "update",
+      "condition": {
+        "field": "owner_id",
+        "operator": "equals",
+        "value": "{{ auth.userId }}"
+      }
+    }
+  ]
+}
+```
+
+## Field-Level Access Control
+
+Restrict access to specific fields within documents:
+
+```bash
+curl -X POST https://<API_ENDPOINT>/api/v1/db/field-access \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -d '{
+    "collection": "users",
+    "role": "viewer",
+    "fieldAccess": {
+      "email": "hidden",
+      "phoneNumber": "hidden",
+      "salary": "hidden",
+      "bio": "visible"
+    }
+  }'
+```
+
+### Field Access Levels
+
+- **visible**: Full access to field
+- **hidden**: Field completely hidden
+- **redacted**: Field returns null
+- **masked**: Field returns masked value (e.g., "***@example.com")
+
+## Database Permissions
+
+Control who can access entire databases:
+
+```bash
+curl -X POST https://<API_ENDPOINT>/api/v1/db/databases/db_123/permissions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -d '{
+    "role": "editor",
+    "permissions": {
+      "read": true,
+      "create": true,
+      "update": true,
+      "delete": false
+    }
+  }'
+```
+
+## Best Practices
+
+1. **Principle of Least Privilege**: Grant minimum necessary permissions
+2. **Use API Key Scopes**: Create limited-scope keys for third-party integrations
+3. **Implement RLS Rules**: Use dynamic conditions for data isolation
+4. **Hide Sensitive Fields**: Use field-level access for PII
+5. **Regular Audits**: Review who has access to what
+6. **Service Accounts**: Use separate accounts for automated processes
+7. **Key Rotation**: Regularly rotate API keys
+8. **Test Rules**: Thoroughly test permission rules before deployment
+
+## Common Patterns
+
+### Read-Only API Key
+
+```javascript
+{
+  "scopes": ["db:read", "collections:read", "documents:read"]
+}
+```
+
+### User Can Only See Own Documents
+
+```javascript
+{
+  "action": "read",
+  "condition": {
+    "field": "user_id",
+    "operator": "equals",
+    "value": "{{ auth.userId }}"
+  }
+}
+```
+
+### Team-Based Access
+
+```javascript
+{
+  "action": "read",
+  "condition": {
+    "field": "team_id",
+    "operator": "in",
+    "value": "{{ auth.teams }}"
+  }
+}
+```
+
+### Admin Override
+
+```javascript
+{
+  "condition": {
+    "field": "role",
+    "operator": "equals",
+    "value": "admin"
+  },
+  "action": "read"
+}
+```

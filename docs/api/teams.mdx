@@ -1,0 +1,607 @@
+---
+title: Teams
+description: API reference for team management and collaboration
+readTime: 8
+relatedTo:
+  - projects
+  - users
+---
+
+# Teams API
+
+Teams are organizations that group users together. Each team can have multiple projects and members with different roles.
+
+## Authentication
+
+All team endpoints require JWT authentication:
+
+```
+Authorization: Bearer your_jwt_token
+```
+
+---
+
+## Create Team
+
+Creates a new team.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/platform/teams
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Team name |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/teams" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_jwt_token" \
+  -d '{
+    "name": "Acme Corp"
+  }'
+```
+
+### JavaScript Example
+
+```javascript
+const response = await fetch('<API_ENDPOINT>/api/v1/platform/teams', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  },
+  body: JSON.stringify({
+    name: 'Acme Corp',
+  }),
+});
+
+const { team } = await response.json();
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "team": {
+    "id": "team_abc123",
+    "name": "Acme Corp",
+    "ownerId": "usr_xyz789",
+    "createdAt": "2024-01-15T10:30:00.000Z"
+  }
+}
+```
+
+---
+
+## List Teams
+
+Returns all teams the user is a member of.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/platform/teams
+```
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/platform/teams" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "teams": [
+    {
+      "id": "team_abc123",
+      "name": "Acme Corp",
+      "role": "owner",
+      "memberCount": 5,
+      "projectCount": 3,
+      "createdAt": "2024-01-15T10:30:00.000Z"
+    },
+    {
+      "id": "team_def456",
+      "name": "Side Project",
+      "role": "member",
+      "memberCount": 2,
+      "projectCount": 1,
+      "createdAt": "2024-01-20T15:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+## Get Team
+
+Retrieves a specific team by ID.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/platform/teams/:teamId
+```
+
+### Path Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `teamId` | Team identifier |
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/platform/teams/team_abc123" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "team": {
+    "id": "team_abc123",
+    "name": "Acme Corp",
+    "ownerId": "usr_xyz789",
+    "memberCount": 5,
+    "projectCount": 3,
+    "createdAt": "2024-01-15T10:30:00.000Z",
+    "updatedAt": "2024-01-15T10:30:00.000Z"
+  }
+}
+```
+
+---
+
+## Update Team
+
+Updates a team's properties.
+
+### Endpoint
+
+```
+PUT <API_ENDPOINT>/api/v1/platform/teams/:teamId
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | No | New team name |
+
+### Example Request
+
+```bash
+curl -X PUT "<API_ENDPOINT>/api/v1/platform/teams/team_abc123" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_jwt_token" \
+  -d '{
+    "name": "Acme Corporation"
+  }'
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "team": {
+    "id": "team_abc123",
+    "name": "Acme Corporation",
+    "updatedAt": "2024-01-15T12:00:00.000Z"
+  }
+}
+```
+
+---
+
+## Delete Team
+
+Permanently deletes a team and all its projects.
+
+### Endpoint
+
+```
+DELETE <API_ENDPOINT>/api/v1/platform/teams/:teamId
+```
+
+### Example Request
+
+```bash
+curl -X DELETE "<API_ENDPOINT>/api/v1/platform/teams/team_abc123" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Team deleted successfully"
+}
+```
+
+**Warning**: This action is irreversible. All projects, databases, and data belonging to this team will be deleted.
+
+---
+
+## Get Team Statistics
+
+Retrieves usage statistics for a team.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/platform/teams/:teamId/stats
+```
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/platform/teams/team_abc123/stats" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "stats": {
+    "memberCount": 5,
+    "projectCount": 3,
+    "totalDatabases": 8,
+    "totalDocuments": 15000,
+    "totalStorage": 52428800
+  }
+}
+```
+
+---
+
+## Get Team Activity
+
+Retrieves recent activity for a team.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/platform/teams/:teamId/activity
+```
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/platform/teams/team_abc123/activity" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "activity": [
+    {
+      "action": "project.created",
+      "userId": "usr_xyz789",
+      "userName": "John Doe",
+      "details": { "projectName": "New API" },
+      "timestamp": "2024-01-15T10:30:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+## Get Team Usage
+
+Retrieves usage metrics for a team.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/platform/teams/:teamId/usage
+```
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/platform/teams/team_abc123/usage" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "usage": {
+    "period": "2024-01",
+    "apiRequests": 125000,
+    "bandwidth": 1073741824,
+    "storage": 52428800,
+    "documents": 15000
+  }
+}
+```
+
+---
+
+## Get Team Members
+
+Returns all members of a team.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/platform/teams/:teamId/members
+```
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/platform/teams/team_abc123/members" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "members": [
+    {
+      "userId": "usr_xyz789",
+      "email": "owner@example.com",
+      "name": "John Doe",
+      "role": "owner",
+      "joinedAt": "2024-01-15T10:30:00.000Z"
+    },
+    {
+      "userId": "usr_abc456",
+      "email": "member@example.com",
+      "name": "Jane Smith",
+      "role": "member",
+      "joinedAt": "2024-01-16T09:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+## Invite Member
+
+Invites a new member to the team.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/platform/teams/:teamId/invite
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `email` | string | Yes | Email address to invite |
+| `role` | string | No | Role: `owner`, `admin`, `member` (default: `member`) |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/teams/team_abc123/invite" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_jwt_token" \
+  -d '{
+    "email": "newmember@example.com",
+    "role": "member"
+  }'
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "invite": {
+    "id": "inv_xyz123",
+    "email": "newmember@example.com",
+    "role": "member",
+    "expiresAt": "2024-01-22T10:30:00.000Z"
+  }
+}
+```
+
+---
+
+## Accept Invite
+
+Accepts a team invitation.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/platform/teams/invites/:inviteId/accept
+```
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/teams/invites/inv_xyz123/accept" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "team": {
+    "id": "team_abc123",
+    "name": "Acme Corp",
+    "role": "member"
+  }
+}
+```
+
+---
+
+## List Invites
+
+Returns pending invitations for a team.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/platform/teams/:teamId/invites
+```
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/platform/teams/team_abc123/invites" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "invites": [
+    {
+      "id": "inv_xyz123",
+      "email": "pending@example.com",
+      "role": "member",
+      "invitedBy": "usr_xyz789",
+      "createdAt": "2024-01-15T10:30:00.000Z",
+      "expiresAt": "2024-01-22T10:30:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+## Revoke Invite
+
+Cancels a pending invitation.
+
+### Endpoint
+
+```
+DELETE <API_ENDPOINT>/api/v1/platform/teams/invites/:inviteId
+```
+
+### Example Request
+
+```bash
+curl -X DELETE "<API_ENDPOINT>/api/v1/platform/teams/invites/inv_xyz123" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Invitation revoked"
+}
+```
+
+---
+
+## Remove Member
+
+Removes a member from the team.
+
+### Endpoint
+
+```
+DELETE <API_ENDPOINT>/api/v1/platform/teams/:teamId/members/:userId
+```
+
+### Example Request
+
+```bash
+curl -X DELETE "<API_ENDPOINT>/api/v1/platform/teams/team_abc123/members/usr_abc456" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Member removed from team"
+}
+```
+
+---
+
+## Update Member Role
+
+Updates a member's role within the team.
+
+### Endpoint
+
+```
+PUT <API_ENDPOINT>/api/v1/platform/teams/:teamId/members/:userId/role
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `role` | string | Yes | New role: `owner`, `admin`, `member` |
+
+### Example Request
+
+```bash
+curl -X PUT "<API_ENDPOINT>/api/v1/platform/teams/team_abc123/members/usr_abc456/role" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_jwt_token" \
+  -d '{
+    "role": "admin"
+  }'
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "member": {
+    "userId": "usr_abc456",
+    "role": "admin"
+  }
+}
+```
+
+---
+
+## Team Roles
+
+| Role | Permissions |
+|------|-------------|
+| `owner` | Full access, can delete team, transfer ownership |
+| `admin` | Manage members, projects, settings |
+| `member` | Access projects, create resources |

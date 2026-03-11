@@ -1,0 +1,374 @@
+# Best Practices
+
+Essential practices for building robust applications with Mavibase.
+
+## Data Design
+
+### Use Meaningful IDs
+
+```javascript
+// Good - descriptive prefixes
+{
+  "_id": "user_123abc",
+  "projectId": "proj_456def"
+}
+
+// Avoid - generic IDs
+{
+  "_id": "123",
+  "projectId": "456"
+}
+```
+
+### Plan for Growth
+
+Consider future scaling:
+- Index high-cardinality fields
+- Denormalize frequently accessed data
+- Plan collection sharding strategy
+
+### Normalize When Appropriate
+
+```javascript
+// Good - separate collections for relationships
+// customers collection
+{
+  "_id": "cust_123",
+  "name": "John Doe",
+  "addressId": "addr_456"
+}
+
+// addresses collection
+{
+  "_id": "addr_456",
+  "street": "123 Main St",
+  "city": "Anytown"
+}
+
+// Avoid - excessive nesting
+{
+  "_id": "cust_123",
+  "name": "John Doe",
+  "address": {
+    "street": "123 Main St",
+    "city": "Anytown",
+    // ... many more fields
+  }
+}
+```
+
+## API Usage
+
+### Batch Operations
+
+Group related changes:
+
+```javascript
+// Good - single transaction
+const txn = await client.transactions.begin();
+try {
+  // Multiple related operations
+  await client.documents.update(..., { transactionId: txn.id });
+  await client.documents.update(..., { transactionId: txn.id });
+  await client.transactions.commit(txn.id);
+} catch (error) {
+  await client.transactions.rollback(txn.id);
+}
+
+// Avoid - multiple separate requests
+await client.documents.update(...);
+await client.documents.update(...);
+```
+
+### Use Projections
+
+Only request needed fields:
+
+```javascript
+// Good
+const users = await client.documents.list({
+  collection: 'users',
+  projection: 'name,email,createdAt'
+});
+
+// Avoid - unnecessary data transfer
+const users = await client.documents.list({
+  collection: 'users'
+});
+```
+
+### Implement Pagination
+
+```javascript
+// Good
+const users = await client.documents.list({
+  collection: 'users',
+  limit: 50,
+  offset: 0
+});
+
+// Avoid - loading all data
+const allUsers = await client.documents.list({
+  collection: 'users'
+});
+```
+
+## Security
+
+### Validate All Input
+
+```javascript
+// Good
+const email = input.email?.toLowerCase().trim();
+if (!isValidEmail(email)) {
+  throw new Error('Invalid email');
+}
+
+// Avoid - trust user input
+const email = input.email;
+```
+
+### Use API Key Scopes
+
+```javascript
+// Good - limited permissions
+const apiKey = await client.apiKeys.create({
+  scopes: ['documents:read', 'documents:create']
+});
+
+// Avoid - all permissions
+const apiKey = await client.apiKeys.create({
+  scopes: ['*:*']
+});
+```
+
+### Implement RLS Rules
+
+```javascript
+// Good - row-level security
+{
+  "rules": [
+    {
+      "action": "read",
+      "condition": {
+        "field": "user_id",
+        "operator": "equals",
+        "value": "{{ auth.userId }}"
+      }
+    }
+  ]
+}
+
+// Avoid - no access control
+// All data accessible to all users
+```
+
+### Rotate API Keys
+
+- Regular rotation (monthly or quarterly)
+- Revoke compromised keys immediately
+- Use separate keys for different services
+
+## Error Handling
+
+### Graceful Degradation
+
+```javascript
+try {
+  const user = await client.documents.get({
+    collection: 'users',
+    id: userId
+  });
+} catch (error) {
+  if (error.code === 'DOCUMENT_NOT_FOUND') {
+    return null; // Handle gracefully
+  }
+  throw error;
+}
+```
+
+### Meaningful Error Messages
+
+```javascript
+// Good
+throw new Error('User not found. Please check the user ID and try again.');
+
+// Avoid
+throw new Error('Error');
+```
+
+## Performance
+
+### Index Strategically
+
+```javascript
+// Index frequently queried fields
+await client.indexes.create({
+  collection: 'orders',
+  fields: { userId: 1, createdAt: -1 },
+  name: 'user_orders'
+});
+
+// Avoid - indexing everything
+// Choose based on query patterns
+```
+
+### Cache When Possible
+
+```javascript
+// Good - cache results
+const userCache = new Map();
+
+async function getUser(id) {
+  if (userCache.has(id)) {
+    return userCache.get(id);
+  }
+  
+  const user = await client.documents.get({
+    collection: 'users',
+    id
+  });
+  
+  userCache.set(id, user);
+  return user;
+}
+```
+
+### Monitor Performance
+
+Track slow queries:
+
+```bash
+curl https://<API_ENDPOINT>/api/v1/db/slow-queries \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+## Testing
+
+### Test Permission Rules
+
+```javascript
+describe('Permission Rules', () => {
+  it('should allow user to read own documents', async () => {
+    const doc = await client.documents.get({
+      collection: 'documents',
+      id: 'doc_123',
+      auth: { userId: 'user_123' }
+    });
+    expect(doc).toBeDefined();
+  });
+
+  it('should deny user access to other documents', async () => {
+    const promise = client.documents.get({
+      collection: 'documents',
+      id: 'doc_456',
+      auth: { userId: 'user_123' }
+    });
+    await expect(promise).rejects.toThrow('INSUFFICIENT_PERMISSIONS');
+  });
+});
+```
+
+### Test Transaction Rollback
+
+```javascript
+it('should rollback on error', async () => {
+  const txn = await client.transactions.begin();
+  
+  try {
+    await client.documents.update({}, {}, { transactionId: txn.id });
+    throw new Error('Test error');
+  } catch (error) {
+    await client.transactions.rollback(txn.id);
+  }
+  
+  // Verify no changes were committed
+  const count = await client.documents.count({ collection: 'test' });
+  expect(count).toBe(0);
+});
+```
+
+## Monitoring
+
+### Track Key Metrics
+
+- Request latency
+- Error rates
+- Slow queries
+- API usage
+
+### Set Up Alerts
+
+- High error rates
+- Slow query detection
+- Rate limit warnings
+- Quota utilization
+
+### Review Audit Logs
+
+- Monitor access patterns
+- Track data modifications
+- Identify suspicious activity
+
+## Code Organization
+
+### Separate Concerns
+
+```javascript
+// Good - separate files
+clients/
+  ├── auth.js       // Authentication logic
+  ├── documents.js  // Document operations
+  └── transactions.js // Transaction handling
+
+// Avoid - everything in one file
+client.js
+```
+
+### Reusable Utilities
+
+```javascript
+// Good - reusable helper
+async function withRetry(fn, maxRetries = 3) {
+  // Implementation
+}
+
+// Use throughout codebase
+const user = await withRetry(() => getUser(id));
+
+// Avoid - repeating logic
+try {
+  // Retry logic
+} catch (error) {
+  // Try again
+}
+```
+
+## Documentation
+
+### Comment Complex Logic
+
+```javascript
+// Good - explain why
+// Cache user data for 5 minutes to reduce API calls
+// during high-traffic periods
+userCache.set(id, user);
+
+// Avoid - state the obvious
+// Set user in cache
+userCache.set(id, user);
+```
+
+### Document API Usage
+
+```javascript
+/**
+ * Fetch user by ID
+ * @param {string} id - User ID
+ * @returns {Promise<User>} User object
+ * @throws {Error} If user not found
+ */
+async function getUser(id) {
+  // ...
+}
+```

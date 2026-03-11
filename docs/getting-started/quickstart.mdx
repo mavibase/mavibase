@@ -1,0 +1,237 @@
+---
+title: Quick Start Guide
+description: Get up and running with Mavibase in minutes
+readTime: 5
+relatedTo:
+  - installation
+  - authentication
+  - databases
+---
+
+# Quick Start Guide
+
+This guide will help you get started with Mavibase in just a few minutes.
+
+## Prerequisites
+
+Before you begin, make sure you have:
+
+- Node.js 20 or later
+- pnpm 8 or later
+- PostgreSQL 14 or later
+- Redis 6 or later
+
+## Step 1: Clone and Install
+
+```bash
+# Clone the repository
+git clone https://github.com/mavibase/mavibase.git
+cd mavibase
+
+# Install dependencies
+pnpm install
+```
+
+## Step 2: Configure Environment
+
+Copy the example environment file and configure your settings:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` with your database and Redis credentials:
+
+```env
+# Database
+DATABASE_URL=postgresql://user:password@localhost:5432/mavibase
+
+# Redis
+REDIS_URL=redis://localhost:6379
+
+# JWT Secret (generate a secure random string)
+JWT_SECRET=your-secure-jwt-secret
+
+# Server
+PORT=5000
+NODE_ENV=development
+```
+
+## Step 3: Run Migrations
+
+Initialize the database schema:
+
+```bash
+# Run platform migrations
+pnpm migrate:platform
+
+# Run database migrations
+pnpm migrate:database
+```
+
+## Step 4: Start the Server
+
+```bash
+# Start API server
+pnpm dev
+
+# Or start both API and console
+pnpm dev:all
+```
+
+The API will be available at `http://localhost:5000`.
+
+## Step 5: Create Your First User
+
+Register a new user account:
+
+```bash
+curl -X POST "http://localhost:5000/api/v1/platform/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "SecurePassword123!",
+    "name": "John Doe"
+  }'
+```
+
+## Step 6: Create a Team and Project
+
+After logging in, create a team and project:
+
+```bash
+# Login to get JWT token
+TOKEN=$(curl -s -X POST "http://localhost:5000/api/v1/platform/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "SecurePassword123!"}' \
+  | jq -r '.token')
+
+# Create a team
+curl -X POST "http://localhost:5000/api/v1/platform/teams" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"name": "My Team"}'
+
+# Create a project
+curl -X POST "http://localhost:5000/api/v1/platform/projects" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"name": "My Project", "teamId": "team_id_from_response"}'
+```
+
+## Step 7: Create an API Key
+
+Generate an API key for database access:
+
+```bash
+curl -X POST "http://localhost:5000/api/v1/platform/api-keys" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "name": "Development Key",
+    "projectId": "project_id_from_response",
+    "scopes": ["databases:read", "databases:write", "databases:delete"]
+  }'
+```
+
+## Step 8: Create Your First Database
+
+Now use your API key to create a database:
+
+```bash
+API_KEY="your_api_key_from_response"
+
+curl -X POST "http://localhost:5000/api/v1/db/databases" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $API_KEY" \
+  -d '{"name": "my-app-db"}'
+```
+
+## Step 9: Create a Collection
+
+Create a collection to store documents:
+
+```bash
+curl -X POST "http://localhost:5000/api/v1/db/databases/DATABASE_ID/collections" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $API_KEY" \
+  -d '{
+    "name": "users",
+    "schema": {
+      "name": { "type": "string", "required": true },
+      "email": { "type": "email", "required": true, "unique": true },
+      "age": { "type": "integer", "min": 0 }
+    }
+  }'
+```
+
+## Step 10: Insert Documents
+
+Add documents to your collection:
+
+```bash
+curl -X POST "http://localhost:5000/api/v1/db/databases/DATABASE_ID/collections/COLLECTION_ID/documents" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $API_KEY" \
+  -d '{
+    "data": {
+      "name": "Alice",
+      "email": "alice@example.com",
+      "age": 28
+    }
+  }'
+```
+
+## Next Steps
+
+Now that you have Mavibase running, explore these topics:
+
+- [Data Modeling](/docs/concepts/data-modeling) - Learn about collections and schemas
+- [Querying](/docs/api/querying) - Master the query language
+- [Permissions](/docs/concepts/permissions) - Set up access control
+- [Relationships](/docs/concepts/relationships) - Link collections together
+
+## Example: JavaScript Integration
+
+```javascript
+const API_KEY = 'your_api_key';
+const BASE_URL = 'http://localhost:5000/api/v1/db';
+
+// Create a document
+async function createUser(userData) {
+  const response = await fetch(
+    `${BASE_URL}/databases/DB_ID/collections/COLLECTION_ID/documents`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': API_KEY,
+      },
+      body: JSON.stringify({ data: userData }),
+    }
+  );
+  return response.json();
+}
+
+// Query documents
+async function findUsers(query) {
+  const response = await fetch(
+    `${BASE_URL}/databases/DB_ID/collections/COLLECTION_ID/documents?${new URLSearchParams(query)}`,
+    {
+      headers: {
+        'X-API-Key': API_KEY,
+      },
+    }
+  );
+  return response.json();
+}
+
+// Usage
+const user = await createUser({
+  name: 'Bob',
+  email: 'bob@example.com',
+  age: 32,
+});
+
+const users = await findUsers({ limit: 10 });
+```

@@ -1,0 +1,499 @@
+---
+title: Users
+description: API reference for user profile and account management
+readTime: 7
+relatedTo:
+  - auth
+  - teams
+  - sessions
+---
+
+# Users API
+
+The Users API handles user profile management, account settings, and admin user operations.
+
+## Authentication
+
+All user endpoints require JWT authentication:
+
+```
+Authorization: Bearer your_jwt_token
+```
+
+---
+
+## Get Current User Profile
+
+Retrieves the authenticated user's profile.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/platform/users/me
+```
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/platform/users/me" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### JavaScript Example
+
+```javascript
+const response = await fetch('<API_ENDPOINT>/api/v1/platform/users/me', {
+  headers: {
+    Authorization: `Bearer ${token}`,
+  },
+});
+
+const { user } = await response.json();
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "user": {
+    "id": "usr_abc123",
+    "email": "user@example.com",
+    "name": "John Doe",
+    "avatar": "https://example.com/avatar.jpg",
+    "emailVerified": true,
+    "twoFactorEnabled": false,
+    "selectedTeamId": "team_xyz789",
+    "selectedProjectId": "prj_def456",
+    "createdAt": "2024-01-15T10:30:00.000Z",
+    "updatedAt": "2024-01-15T10:30:00.000Z"
+  }
+}
+```
+
+---
+
+## Update Profile
+
+Updates the authenticated user's profile.
+
+### Endpoint
+
+```
+PUT <API_ENDPOINT>/api/v1/platform/users/me
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | No | Display name |
+| `avatar` | string | No | Avatar URL |
+
+### Example Request
+
+```bash
+curl -X PUT "<API_ENDPOINT>/api/v1/platform/users/me" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_jwt_token" \
+  -d '{
+    "name": "John Smith",
+    "avatar": "https://example.com/new-avatar.jpg"
+  }'
+```
+
+### JavaScript Example
+
+```javascript
+const response = await fetch('<API_ENDPOINT>/api/v1/platform/users/me', {
+  method: 'PUT',
+  headers: {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  },
+  body: JSON.stringify({
+    name: 'John Smith',
+  }),
+});
+
+const { user } = await response.json();
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "user": {
+    "id": "usr_abc123",
+    "name": "John Smith",
+    "avatar": "https://example.com/new-avatar.jpg",
+    "updatedAt": "2024-01-15T12:00:00.000Z"
+  }
+}
+```
+
+---
+
+## Change Password
+
+Changes the authenticated user's password.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/platform/users/me/change-password
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `currentPassword` | string | Yes | Current password |
+| `newPassword` | string | Yes | New password |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/users/me/change-password" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_jwt_token" \
+  -d '{
+    "currentPassword": "OldPassword123",
+    "newPassword": "NewPassword456"
+  }'
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Password changed successfully"
+}
+```
+
+---
+
+## Change Email
+
+Initiates an email change process.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/platform/users/me/change-email
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `newEmail` | string | Yes | New email address |
+| `password` | string | Yes | Current password for verification |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/users/me/change-email" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_jwt_token" \
+  -d '{
+    "newEmail": "newemail@example.com",
+    "password": "CurrentPassword123"
+  }'
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Verification email sent to new address"
+}
+```
+
+---
+
+## Select Team
+
+Sets the user's currently selected team.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/platform/users/me/select-team
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `teamId` | string | Yes | Team identifier |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/users/me/select-team" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_jwt_token" \
+  -d '{
+    "teamId": "team_xyz789"
+  }'
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "selectedTeamId": "team_xyz789"
+}
+```
+
+---
+
+## Select Project
+
+Sets the user's currently selected project.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/platform/users/me/select-project
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `projectId` | string | Yes | Project identifier |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/users/me/select-project" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_jwt_token" \
+  -d '{
+    "projectId": "prj_def456"
+  }'
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "selectedProjectId": "prj_def456"
+}
+```
+
+---
+
+## Delete Account
+
+Permanently deletes the user's account and all associated data.
+
+### Endpoint
+
+```
+DELETE <API_ENDPOINT>/api/v1/platform/users/me
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `password` | string | Yes | Current password for verification |
+
+### Example Request
+
+```bash
+curl -X DELETE "<API_ENDPOINT>/api/v1/platform/users/me" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_jwt_token" \
+  -d '{
+    "password": "CurrentPassword123"
+  }'
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Account deleted successfully"
+}
+```
+
+**Warning**: This action is irreversible. All user data, team memberships, and owned resources will be deleted.
+
+---
+
+## Admin Operations
+
+The following endpoints require admin role.
+
+### List All Users
+
+```
+GET <API_ENDPOINT>/api/v1/platform/users
+```
+
+Requires: `admin` role
+
+### Query Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit` | integer | 25 | Maximum results |
+| `offset` | integer | 0 | Results to skip |
+| `search` | string | - | Search by name/email |
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/platform/users?limit=10" \
+  -H "Authorization: Bearer admin_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "users": [
+    {
+      "id": "usr_abc123",
+      "email": "user@example.com",
+      "name": "John Doe",
+      "emailVerified": true,
+      "role": "user",
+      "createdAt": "2024-01-15T10:30:00.000Z"
+    }
+  ],
+  "total": 150
+}
+```
+
+---
+
+### Search Users
+
+```
+GET <API_ENDPOINT>/api/v1/platform/users/search
+```
+
+Requires: `admin` role
+
+### Query Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `q` | string | Yes | Search query |
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/platform/users/search?q=john" \
+  -H "Authorization: Bearer admin_jwt_token"
+```
+
+---
+
+### Get User by ID
+
+```
+GET <API_ENDPOINT>/api/v1/platform/users/:userId
+```
+
+Requires: `admin` role
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/platform/users/usr_abc123" \
+  -H "Authorization: Bearer admin_jwt_token"
+```
+
+---
+
+### Get User Activity
+
+```
+GET <API_ENDPOINT>/api/v1/platform/users/:userId/activity
+```
+
+Requires: `admin` role
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/platform/users/usr_abc123/activity" \
+  -H "Authorization: Bearer admin_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "activity": [
+    {
+      "action": "login",
+      "timestamp": "2024-01-15T10:30:00.000Z",
+      "ip": "192.168.1.1",
+      "userAgent": "Mozilla/5.0..."
+    }
+  ]
+}
+```
+
+---
+
+### Update User (Admin)
+
+```
+PUT <API_ENDPOINT>/api/v1/platform/users/:userId
+```
+
+Requires: `admin` role
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | No | User's name |
+| `role` | string | No | User's role |
+
+---
+
+### Suspend User
+
+```
+POST <API_ENDPOINT>/api/v1/platform/users/:userId/suspend
+```
+
+Requires: `admin` role
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/users/usr_abc123/suspend" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer admin_jwt_token" \
+  -d '{
+    "reason": "Violation of terms of service"
+  }'
+```
+
+---
+
+### Delete User (Admin)
+
+```
+DELETE <API_ENDPOINT>/api/v1/platform/users/:userId
+```
+
+Requires: `admin` role

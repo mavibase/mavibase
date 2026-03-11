@@ -1,0 +1,604 @@
+---
+title: Collections
+description: API reference for managing collections in Mavibase
+readTime: 10
+relatedTo:
+  - databases
+  - documents
+  - schema-validation
+---
+
+# Collections API
+
+Collections are containers for documents within a database. Each collection can have an optional schema for data validation.
+
+## Authentication
+
+All collection endpoints require an API key with appropriate scopes:
+
+| Scope | Required For |
+|-------|--------------|
+| `databases:read` | GET requests |
+| `databases:write` | POST, PATCH requests |
+| `databases:delete` | DELETE requests |
+
+---
+
+## Create Collection
+
+Creates a new collection in a database.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/db/databases/:databaseId/collections
+```
+
+### Path Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `databaseId` | Parent database identifier |
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Collection name |
+| `schema` | object | No | Schema definition for validation |
+| `permissions` | object | No | Collection-level permissions |
+
+### Schema Field Types
+
+| Type | Description |
+|------|-------------|
+| `string` | Text values |
+| `number` | Any numeric value |
+| `integer` | Whole numbers only |
+| `float` | Decimal numbers |
+| `boolean` | true/false |
+| `object` | Nested JSON object |
+| `array` | Array of values |
+| `email` | Valid email address |
+| `url` | Valid URL |
+| `ip` | Valid IP address |
+| `datetime` | ISO 8601 datetime |
+| `enum` | One of predefined values |
+
+### Schema Validation Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `required` | boolean | Field must be present |
+| `unique` | boolean | Value must be unique across collection |
+| `default` | any | Default value if not provided |
+| `min` | number | Minimum value (for numbers) |
+| `max` | number | Maximum value (for numbers) |
+| `minLength` | number | Minimum string length |
+| `maxLength` | number | Maximum string length |
+| `regex` | string | Regular expression pattern |
+| `enum` | array | Allowed values list |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your_api_key" \
+  -d '{
+    "name": "users",
+    "schema": {
+      "name": {
+        "type": "string",
+        "required": true,
+        "minLength": 2,
+        "maxLength": 100
+      },
+      "email": {
+        "type": "email",
+        "required": true,
+        "unique": true
+      },
+      "age": {
+        "type": "integer",
+        "min": 0,
+        "max": 150
+      },
+      "role": {
+        "type": "enum",
+        "enum": ["user", "admin", "moderator"],
+        "default": "user"
+      },
+      "isActive": {
+        "type": "boolean",
+        "default": true
+      }
+    }
+  }'
+```
+
+### JavaScript Example
+
+```javascript
+const response = await fetch(
+  '<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections',
+  {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': 'your_api_key',
+    },
+    body: JSON.stringify({
+      name: 'users',
+      schema: {
+        name: { type: 'string', required: true },
+        email: { type: 'email', required: true, unique: true },
+        age: { type: 'integer', min: 0 },
+      },
+    }),
+  }
+);
+
+const { collection } = await response.json();
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "collection": {
+    "id": "col_xyz789",
+    "name": "users",
+    "databaseId": "db_abc123",
+    "schema": {
+      "name": { "type": "string", "required": true },
+      "email": { "type": "email", "required": true, "unique": true },
+      "age": { "type": "integer", "min": 0 }
+    },
+    "documentCount": 0,
+    "createdAt": "2024-01-15T10:30:00.000Z",
+    "updatedAt": "2024-01-15T10:30:00.000Z"
+  }
+}
+```
+
+---
+
+## List Collections
+
+Returns all collections in a database.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/db/databases/:databaseId/collections
+```
+
+### Path Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `databaseId` | Parent database identifier |
+
+### Query Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit` | integer | 25 | Maximum results to return |
+| `offset` | integer | 0 | Number of results to skip |
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections" \
+  -H "X-API-Key: your_api_key"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "collections": [
+    {
+      "id": "col_xyz789",
+      "name": "users",
+      "databaseId": "db_abc123",
+      "documentCount": 150,
+      "createdAt": "2024-01-15T10:30:00.000Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+---
+
+## Get Collection
+
+Retrieves a single collection by ID.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/db/databases/:databaseId/collections/:collectionId
+```
+
+### Path Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `databaseId` | Parent database identifier |
+| `collectionId` | Collection identifier |
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_xyz789" \
+  -H "X-API-Key: your_api_key"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "collection": {
+    "id": "col_xyz789",
+    "name": "users",
+    "databaseId": "db_abc123",
+    "schema": {
+      "name": { "type": "string", "required": true },
+      "email": { "type": "email", "required": true, "unique": true }
+    },
+    "permissions": {
+      "read": ["any"],
+      "create": ["user:*"],
+      "update": ["owner"],
+      "delete": ["role:admin"]
+    },
+    "documentCount": 150,
+    "createdAt": "2024-01-15T10:30:00.000Z",
+    "updatedAt": "2024-01-15T10:30:00.000Z"
+  }
+}
+```
+
+---
+
+## Get Collection Schema
+
+Retrieves the schema definition for a collection.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/db/databases/:databaseId/collections/:collectionId/schema
+```
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_xyz789/schema" \
+  -H "X-API-Key: your_api_key"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "schema": {
+    "name": { "type": "string", "required": true },
+    "email": { "type": "email", "required": true, "unique": true },
+    "age": { "type": "integer", "min": 0 }
+  }
+}
+```
+
+---
+
+## Get Collection Usage
+
+Retrieves usage statistics for a collection.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/db/databases/:databaseId/collections/:collectionId/usage
+```
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_xyz789/usage" \
+  -H "X-API-Key: your_api_key"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "usage": {
+    "documentCount": 150,
+    "totalSize": 524288,
+    "averageDocumentSize": 3495,
+    "indexCount": 2
+  }
+}
+```
+
+---
+
+## Get Collection Attributes
+
+Retrieves all attributes (fields) defined in a collection's schema.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/db/databases/:databaseId/collections/:collectionId/attributes
+```
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_xyz789/attributes" \
+  -H "X-API-Key: your_api_key"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "attributes": [
+    {
+      "key": "name",
+      "type": "string",
+      "required": true,
+      "minLength": 2,
+      "maxLength": 100
+    },
+    {
+      "key": "email",
+      "type": "email",
+      "required": true,
+      "unique": true
+    }
+  ]
+}
+```
+
+---
+
+## Create Attribute
+
+Adds a new attribute to a collection's schema.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/db/databases/:databaseId/collections/:collectionId/attributes
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `key` | string | Yes | Attribute name |
+| `type` | string | Yes | Field type |
+| `required` | boolean | No | Is field required |
+| `unique` | boolean | No | Must be unique |
+| `default` | any | No | Default value |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_xyz789/attributes" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your_api_key" \
+  -d '{
+    "key": "phone",
+    "type": "string",
+    "required": false,
+    "regex": "^\\+?[0-9]{10,15}$"
+  }'
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "attribute": {
+    "key": "phone",
+    "type": "string",
+    "required": false,
+    "regex": "^\\+?[0-9]{10,15}$"
+  }
+}
+```
+
+---
+
+## Update Attribute
+
+Updates an existing attribute in a collection's schema.
+
+### Endpoint
+
+```
+PATCH <API_ENDPOINT>/api/v1/db/databases/:databaseId/collections/:collectionId/attributes/:attributeKey
+```
+
+### Example Request
+
+```bash
+curl -X PATCH "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_xyz789/attributes/phone" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your_api_key" \
+  -d '{
+    "required": true
+  }'
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "attribute": {
+    "key": "phone",
+    "type": "string",
+    "required": true,
+    "regex": "^\\+?[0-9]{10,15}$"
+  }
+}
+```
+
+---
+
+## Delete Attribute
+
+Removes an attribute from a collection's schema.
+
+### Endpoint
+
+```
+DELETE <API_ENDPOINT>/api/v1/db/databases/:databaseId/collections/:collectionId/attributes/:attributeKey
+```
+
+### Example Request
+
+```bash
+curl -X DELETE "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_xyz789/attributes/phone" \
+  -H "X-API-Key: your_api_key"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Attribute deleted successfully"
+}
+```
+
+---
+
+## Get Collection Relationships
+
+Retrieves all relationships defined for a collection.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/db/databases/:databaseId/collections/:collectionId/relationships
+```
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_xyz789/relationships" \
+  -H "X-API-Key: your_api_key"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "relationships": [
+    {
+      "field": "authorId",
+      "type": "manyToOne",
+      "targetCollection": "col_authors",
+      "targetField": "id",
+      "onDelete": "setNull"
+    }
+  ]
+}
+```
+
+---
+
+## Update Collection
+
+Updates a collection's properties.
+
+### Endpoint
+
+```
+PATCH <API_ENDPOINT>/api/v1/db/databases/:databaseId/collections/:collectionId
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | No | New collection name |
+| `permissions` | object | No | Updated permissions |
+
+### Example Request
+
+```bash
+curl -X PATCH "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_xyz789" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your_api_key" \
+  -d '{
+    "name": "members",
+    "permissions": {
+      "read": ["any"],
+      "create": ["user:*"],
+      "update": ["owner"],
+      "delete": ["role:admin"]
+    }
+  }'
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "collection": {
+    "id": "col_xyz789",
+    "name": "members",
+    "databaseId": "db_abc123",
+    "updatedAt": "2024-01-15T12:00:00.000Z"
+  }
+}
+```
+
+---
+
+## Delete Collection
+
+Permanently deletes a collection and all its documents.
+
+### Endpoint
+
+```
+DELETE <API_ENDPOINT>/api/v1/db/databases/:databaseId/collections/:collectionId
+```
+
+### Example Request
+
+```bash
+curl -X DELETE "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_xyz789" \
+  -H "X-API-Key: your_api_key"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Collection deleted successfully"
+}
+```
+
+**Warning**: This action is irreversible. All documents in the collection will be permanently deleted.

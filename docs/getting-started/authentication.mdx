@@ -1,0 +1,350 @@
+---
+title: Authentication Guide
+description: Learn how to authenticate with Mavibase APIs
+readTime: 6
+relatedTo:
+  - api-keys
+  - users
+  - sessions
+---
+
+# Authentication Guide
+
+Mavibase supports two authentication methods depending on your use case.
+
+## Authentication Methods
+
+| Method | Use Case | API |
+|--------|----------|-----|
+| JWT Tokens | User sessions, console access | Platform API |
+| API Keys | Programmatic access, server-to-server | Database API |
+
+## JWT Authentication
+
+JWT tokens are used for user authentication with the Platform API.
+
+### Registering a User
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "SecurePassword123!",
+    "name": "John Doe"
+  }'
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "message": "Registration successful. Please verify your email.",
+  "user": {
+    "id": "usr_abc123",
+    "email": "user@example.com",
+    "name": "John Doe",
+    "emailVerified": false
+  }
+}
+```
+
+### Logging In
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "SecurePassword123!"
+  }'
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "token": "eyJhbGciOiJIUzI1NiIs...",
+  "refreshToken": "eyJhbGciOiJIUzI1NiIs...",
+  "user": {
+    "id": "usr_abc123",
+    "email": "user@example.com",
+    "name": "John Doe"
+  }
+}
+```
+
+### Using JWT Tokens
+
+Include the token in the `Authorization` header:
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/platform/users/me" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..."
+```
+
+### Refreshing Tokens
+
+Access tokens expire after 15 minutes. Use the refresh token to get a new access token:
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/auth/refresh-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "refreshToken": "eyJhbGciOiJIUzI1NiIs..."
+  }'
+```
+
+### Logging Out
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/auth/logout" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..."
+```
+
+## API Key Authentication
+
+API keys are used for programmatic access to the Database API.
+
+### Creating an API Key
+
+First, authenticate with JWT, then create an API key:
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/api-keys" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -d '{
+    "name": "Production API Key",
+    "projectId": "prj_abc123",
+    "scopes": ["databases:read", "databases:write", "databases:delete"]
+  }'
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "apiKey": {
+    "id": "key_abc123",
+    "key": "mb_live_xxxxxxxxxxxxxxxxxxxxxxxx",
+    "name": "Production API Key",
+    "scopes": ["databases:read", "databases:write", "databases:delete"],
+    "createdAt": "2024-01-01T00:00:00.000Z"
+  }
+}
+```
+
+**Important**: The API key is only shown once. Store it securely.
+
+### Using API Keys
+
+Include the API key in the `X-API-Key` header:
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases" \
+  -H "X-API-Key: mb_live_xxxxxxxxxxxxxxxxxxxxxxxx"
+```
+
+### API Key Scopes
+
+| Scope | Permission |
+|-------|------------|
+| `databases:read` | Read databases, collections, documents |
+| `databases:write` | Create and update data |
+| `databases:delete` | Delete data |
+
+### Rotating API Keys
+
+Rotate an API key to generate a new secret:
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/api-keys/key_abc123/rotate" \
+  -H "Authorization: Bearer $JWT_TOKEN"
+```
+
+### Revoking API Keys
+
+Revoke an API key to disable it:
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/api-keys/key_abc123/revoke" \
+  -H "Authorization: Bearer $JWT_TOKEN"
+```
+
+## Two-Factor Authentication (MFA)
+
+Mavibase supports TOTP-based two-factor authentication.
+
+### Enabling 2FA
+
+```bash
+# Step 1: Setup 2FA (returns QR code)
+curl -X POST "<API_ENDPOINT>/api/v1/platform/2fa/setup" \
+  -H "Authorization: Bearer $JWT_TOKEN"
+
+# Response includes secret and QR code URL
+{
+  "secret": "JBSWY3DPEHPK3PXP",
+  "qrCode": "otpauth://totp/Mavibase:user@example.com?secret=JBSWY3DPEHPK3PXP"
+}
+
+# Step 2: Verify setup with code from authenticator app
+curl -X POST "<API_ENDPOINT>/api/v1/platform/2fa/setup/verify" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -d '{"code": "123456"}'
+```
+
+### Logging In with 2FA
+
+When 2FA is enabled, login requires an additional step:
+
+```bash
+# Step 1: Initial login
+curl -X POST "<API_ENDPOINT>/api/v1/platform/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "SecurePassword123!"
+  }'
+
+# Response indicates 2FA required
+{
+  "requires2FA": true,
+  "tempToken": "temp_xxxxxxxx"
+}
+
+# Step 2: Verify 2FA code
+curl -X POST "<API_ENDPOINT>/api/v1/platform/2fa/verify" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tempToken": "temp_xxxxxxxx",
+    "code": "123456"
+  }'
+```
+
+### Disabling 2FA
+
+```bash
+# Request disable
+curl -X POST "<API_ENDPOINT>/api/v1/platform/2fa/disable" \
+  -H "Authorization: Bearer $JWT_TOKEN"
+
+# Confirm with 2FA code
+curl -X POST "<API_ENDPOINT>/api/v1/platform/2fa/disable/confirm" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -d '{"code": "123456"}'
+```
+
+## Email Verification
+
+### Verifying Email
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/platform/auth/verify-email?token=verification_token"
+```
+
+### Resending Verification Email
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/auth/resend-verification" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com"}'
+```
+
+## Password Reset
+
+### Requesting Password Reset
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/auth/password-reset/request" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com"}'
+```
+
+### Confirming Password Reset
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/auth/password-reset/confirm" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "token": "reset_token_from_email",
+    "password": "NewSecurePassword123!"
+  }'
+```
+
+## Security Best Practices
+
+1. **Store tokens securely** - Never expose tokens in client-side code or URLs
+2. **Use HTTPS** - Always use HTTPS in production
+3. **Rotate API keys regularly** - Rotate keys periodically and after any security incident
+4. **Enable 2FA** - Enable two-factor authentication for all user accounts
+5. **Use minimal scopes** - Only request the scopes you need for API keys
+6. **Monitor sessions** - Regularly review active sessions and revoke suspicious ones
+
+## JavaScript Example
+
+```javascript
+class MavibaseAuth {
+  constructor(baseUrl) {
+    this.baseUrl = baseUrl;
+    this.token = null;
+    this.refreshToken = null;
+  }
+
+  async login(email, password) {
+    const response = await fetch(`${this.baseUrl}/api/v1/platform/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const data = await response.json();
+
+    if (data.requires2FA) {
+      return { requires2FA: true, tempToken: data.tempToken };
+    }
+
+    this.token = data.token;
+    this.refreshToken = data.refreshToken;
+    return data;
+  }
+
+  async verify2FA(tempToken, code) {
+    const response = await fetch(`${this.baseUrl}/api/v1/platform/2fa/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tempToken, code }),
+    });
+
+    const data = await response.json();
+    this.token = data.token;
+    this.refreshToken = data.refreshToken;
+    return data;
+  }
+
+  async refreshAccessToken() {
+    const response = await fetch(
+      `${this.baseUrl}/api/v1/platform/auth/refresh-token`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: this.refreshToken }),
+      }
+    );
+
+    const data = await response.json();
+    this.token = data.token;
+    return data;
+  }
+
+  getAuthHeader() {
+    return { Authorization: `Bearer ${this.token}` };
+  }
+}
+```

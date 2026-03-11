@@ -1,0 +1,428 @@
+---
+title: Project Roles
+description: API reference for managing project-level roles and permissions
+readTime: 6
+relatedTo:
+  - projects
+  - permissions
+---
+
+# Project Roles API
+
+Project roles allow you to define custom permission groups for end-users within a project. These roles can be referenced in collection permissions.
+
+## Authentication
+
+All project role endpoints require JWT authentication:
+
+```
+Authorization: Bearer your_jwt_token
+```
+
+---
+
+## Create Role
+
+Creates a new role in a project.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/platform/projects/:projectId/roles
+```
+
+### Path Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `projectId` | Project identifier |
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Role name (e.g., "moderator") |
+| `description` | string | No | Role description |
+| `permissions` | array | No | Default permissions |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/projects/prj_xyz789/roles" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_jwt_token" \
+  -d '{
+    "name": "moderator",
+    "description": "Can moderate user content",
+    "permissions": ["read", "update"]
+  }'
+```
+
+### JavaScript Example
+
+```javascript
+const response = await fetch(
+  '<API_ENDPOINT>/api/v1/platform/projects/prj_xyz789/roles',
+  {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      name: 'moderator',
+      description: 'Can moderate user content',
+      permissions: ['read', 'update'],
+    }),
+  }
+);
+
+const { role } = await response.json();
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "role": {
+    "id": "role_abc123",
+    "name": "moderator",
+    "description": "Can moderate user content",
+    "permissions": ["read", "update"],
+    "createdAt": "2024-01-15T10:30:00.000Z"
+  }
+}
+```
+
+---
+
+## List Roles
+
+Returns all roles in a project.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/platform/projects/:projectId/roles
+```
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/platform/projects/prj_xyz789/roles" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "roles": [
+    {
+      "id": "role_abc123",
+      "name": "moderator",
+      "description": "Can moderate user content",
+      "memberCount": 5
+    },
+    {
+      "id": "role_def456",
+      "name": "analyst",
+      "description": "Read-only access",
+      "memberCount": 3
+    }
+  ]
+}
+```
+
+---
+
+## Get Role
+
+Retrieves a specific role.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/platform/projects/:projectId/roles/:roleId
+```
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/platform/projects/prj_xyz789/roles/role_abc123" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "role": {
+    "id": "role_abc123",
+    "name": "moderator",
+    "description": "Can moderate user content",
+    "permissions": ["read", "update"],
+    "memberCount": 5,
+    "createdAt": "2024-01-15T10:30:00.000Z"
+  }
+}
+```
+
+---
+
+## Update Role
+
+Updates a role's properties.
+
+### Endpoint
+
+```
+PATCH <API_ENDPOINT>/api/v1/platform/projects/:projectId/roles/:roleId
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | No | New role name |
+| `description` | string | No | New description |
+| `permissions` | array | No | New permissions |
+
+### Example Request
+
+```bash
+curl -X PATCH "<API_ENDPOINT>/api/v1/platform/projects/prj_xyz789/roles/role_abc123" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_jwt_token" \
+  -d '{
+    "permissions": ["read", "update", "delete"]
+  }'
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "role": {
+    "id": "role_abc123",
+    "name": "moderator",
+    "permissions": ["read", "update", "delete"],
+    "updatedAt": "2024-01-15T12:00:00.000Z"
+  }
+}
+```
+
+---
+
+## Delete Role
+
+Deletes a role. Users with this role will lose associated permissions.
+
+### Endpoint
+
+```
+DELETE <API_ENDPOINT>/api/v1/platform/projects/:projectId/roles/:roleId
+```
+
+### Example Request
+
+```bash
+curl -X DELETE "<API_ENDPOINT>/api/v1/platform/projects/prj_xyz789/roles/role_abc123" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Role deleted successfully"
+}
+```
+
+---
+
+## List Role Assignments
+
+Returns all users assigned to roles in a project.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/platform/projects/:projectId/roles/assignments
+```
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/platform/projects/prj_xyz789/roles/assignments" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "assignments": [
+    {
+      "userId": "usr_abc123",
+      "roleId": "role_abc123",
+      "roleName": "moderator",
+      "assignedAt": "2024-01-15T10:30:00.000Z",
+      "expiresAt": null
+    },
+    {
+      "userId": "usr_def456",
+      "roleId": "role_abc123",
+      "roleName": "moderator",
+      "assignedAt": "2024-01-16T09:00:00.000Z",
+      "expiresAt": "2024-02-16T09:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+## Assign Role
+
+Assigns a role to a user.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/platform/projects/:projectId/roles/assign
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `userId` | string | Yes | User identifier |
+| `roleId` | string | Yes | Role identifier |
+| `expiresAt` | string | No | Expiration date (ISO 8601) |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/projects/prj_xyz789/roles/assign" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_jwt_token" \
+  -d '{
+    "userId": "usr_xyz789",
+    "roleId": "role_abc123",
+    "expiresAt": "2024-12-31T23:59:59.000Z"
+  }'
+```
+
+### JavaScript Example
+
+```javascript
+const response = await fetch(
+  '<API_ENDPOINT>/api/v1/platform/projects/prj_xyz789/roles/assign',
+  {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      userId: 'usr_xyz789',
+      roleId: 'role_abc123',
+      expiresAt: '2024-12-31T23:59:59.000Z',
+    }),
+  }
+);
+
+const result = await response.json();
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "assignment": {
+    "userId": "usr_xyz789",
+    "roleId": "role_abc123",
+    "assignedAt": "2024-01-15T10:30:00.000Z",
+    "expiresAt": "2024-12-31T23:59:59.000Z"
+  }
+}
+```
+
+---
+
+## Remove Role
+
+Removes a role assignment from a user.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/platform/projects/:projectId/roles/remove
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `userId` | string | Yes | User identifier |
+| `roleId` | string | Yes | Role identifier |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/platform/projects/prj_xyz789/roles/remove" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_jwt_token" \
+  -d '{
+    "userId": "usr_xyz789",
+    "roleId": "role_abc123"
+  }'
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Role removed from user"
+}
+```
+
+---
+
+## Using Roles in Permissions
+
+Reference roles in collection and document permissions:
+
+```javascript
+// Create collection with role-based permissions
+await fetch(
+  '<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections',
+  {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': apiKey,
+    },
+    body: JSON.stringify({
+      name: 'posts',
+      permissions: {
+        read: ['any'],
+        create: ['user:*'],
+        update: ['role:moderator', 'owner'],
+        delete: ['role:admin'],
+      },
+    }),
+  }
+);
+```
+
+See the [Permissions Guide](/docs/concepts/permissions) for complete details.

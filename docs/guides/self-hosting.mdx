@@ -17,36 +17,26 @@ Run your own Mavibase instance. This guide covers all the different ways to self
 
 ## Overview: Choose Your Path
 
-```
-                    ┌─────────────────────────┐
-                    │   How do you want to    │
-                    │     self-host?          │
-                    └───────────┬─────────────┘
-                                │
-            ┌───────────────────┼───────────────────┐
-            │                   │                   │
-            ▼                   ▼                   ▼
-    ┌───────────────┐   ┌───────────────┐   ┌───────────────┐
-    │  Option A:    │   │  Option B:    │   │  Option C:    │
-    │  Clone Repo   │   │  Docker Pull  │   │  Docker Pull  │
-    │               │   │  (Quick)      │   │  + BYOD       │
-    └───────┬───────┘   └───────┬───────┘   └───────┬───────┘
-            │                   │                   │
-            ▼                   │                   │
-    ┌───────────────┐           │                   │
-    │ Sub-options:  │           │                   │
-    │ A1: Built-in  │           │                   │
-    │     databases │           │                   │
-    │ A2: BYOD      │           │                   │
-    └───────────────┘           │                   │
-            │                   │                   │
-            ▼                   ▼                   ▼
-    ┌─────────────────────────────────────────────────┐
-    │            Mavibase Running!                    │
-    │         Console: localhost:3000                 │
-    │         API: localhost:5000                     │
-    └─────────────────────────────────────────────────┘
-```
+There are three main ways to self-host Mavibase. Choose the option that best fits your needs:
+
+### Option A: Clone Repository
+
+Best for developers who want full control, customization, or plan to contribute.
+
+- **A1: Built-in Databases** — Docker creates PostgreSQL and Redis containers automatically. Ideal for development.
+- **A2: BYOD (Bring Your Own Database)** — Use external managed databases (Neon, Supabase, Upstash, etc.)
+
+### Option B: Docker Pull (Quick Start)
+
+Fastest way to get running without cloning. Docker creates all required containers.
+
+### Option C: Docker Pull + BYOD
+
+Production-ready setup using pre-built images with your own managed databases.
+
+**All paths lead to:**
+- Console available at `localhost:3000`
+- API available at `localhost:5000`
 
 ---
 
@@ -364,21 +354,19 @@ docker compose up -d
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────┐
-│                    Your Server                       │
-├─────────────────────────────────────────────────────┤
-│                                                      │
-│  ┌──────────────┐  ┌──────────────┐  ┌───────────┐  │
-│  │   Mavibase   │  │  PostgreSQL  │  │   Redis   │  │
-│  │              │  │              │  │           │  │
-│  │ Console:3000 │──│ mavibase_db  │  │  Cache    │  │
-│  │ API:5000     │  │ mavibase_    │  │  Sessions │  │
-│  │              │  │   platform   │  │           │  │
-│  └──────────────┘  └──────────────┘  └───────────┘  │
-│                                                      │
-└─────────────────────────────────────────────────────┘
-```
+A self-hosted Mavibase deployment consists of three core components running on your server:
+
+| Component | Services | Description |
+|-----------|----------|-------------|
+| **Mavibase** | Console (port 3000), API (port 5000) | The main application serving the web console and REST API |
+| **PostgreSQL** | `mavibase_db`, `mavibase_platform` | Two databases: one for your application data, one for platform metadata |
+| **Redis** | Cache, Sessions | In-memory store for caching and session management |
+
+### Service Communication
+
+- The **Mavibase** container connects to **PostgreSQL** for persistent data storage
+- The **Mavibase** container connects to **Redis** for caching and session state
+- External clients connect to the **Console** (port 3000) and **API** (port 5000)
 
 ---
 

@@ -1,0 +1,323 @@
+---
+title: Installation
+description: Step-by-step guide to installing and configuring Mavibase
+readTime: 8
+relatedTo:
+  - quickstart
+  - configuration
+---
+
+# Installation
+
+This guide covers all installation methods for Mavibase.
+
+## System Requirements
+
+### Minimum Requirements
+
+| Component | Requirement |
+|-----------|-------------|
+| Node.js | 20.0 or later |
+| pnpm | 8.0 or later |
+| PostgreSQL | 14.0 or later |
+| Redis | 6.0 or later |
+| RAM | 2 GB minimum |
+| Storage | 10 GB minimum |
+
+### Recommended for Production
+
+| Component | Recommendation |
+|-----------|----------------|
+| Node.js | Latest LTS |
+| PostgreSQL | 15.0 or later |
+| Redis | 7.0 or later |
+| RAM | 8 GB or more |
+| CPU | 4 cores or more |
+
+## Installation Methods
+
+### Method 1: From Source
+
+This is the recommended method for development and customization.
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/mavibase/mavibase.git
+cd mavibase
+
+# 2. Install dependencies
+pnpm install
+
+# 3. Copy environment configuration
+cp .env.example .env
+
+# 4. Edit .env with your settings
+nano .env
+
+# 5. Run migrations
+pnpm migrate:platform
+pnpm migrate:database
+
+# 6. Start the server
+pnpm dev
+```
+
+### Method 2: Docker (Recommended for Production)
+
+```bash
+# Pull the official image
+docker pull mavibase/mavibase:latest
+
+# Run with Docker Compose
+docker-compose up -d
+```
+
+Example `docker-compose.yml`:
+
+```yaml
+version: '3.8'
+
+services:
+  mavibase:
+    image: mavibase/mavibase:latest
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/mavibase
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=your-secure-secret
+      - NODE_ENV=production
+    depends_on:
+      - db
+      - redis
+
+  db:
+    image: postgres:15
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=mavibase
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
+```
+
+## Environment Configuration
+
+### Required Variables
+
+```env
+# Database connection string
+DATABASE_URL=postgresql://user:password@localhost:5432/mavibase
+
+# Redis connection string
+REDIS_URL=redis://localhost:6379
+
+# JWT secret for token signing (use a secure random string)
+JWT_SECRET=your-secure-jwt-secret-at-least-32-characters
+
+# Server port
+PORT=5000
+
+# Environment
+NODE_ENV=development
+```
+
+### Optional Variables
+
+```env
+# Email configuration (for verification and password reset)
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=your-email@example.com
+SMTP_PASS=your-email-password
+SMTP_FROM=noreply@example.com
+
+# Or use Resend
+RESEND_API_KEY=re_xxxxxxxxxxxxx
+
+# Rate limiting
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=100
+
+# Logging
+LOG_LEVEL=info
+
+# CORS
+CORS_ORIGIN=http://localhost:3000
+
+# Session
+SESSION_SECRET=your-session-secret
+SESSION_EXPIRY=7d
+
+# Token expiry
+ACCESS_TOKEN_EXPIRY=15m
+REFRESH_TOKEN_EXPIRY=7d
+```
+
+## Database Setup
+
+### PostgreSQL Setup
+
+```bash
+# Create the database
+createdb mavibase
+
+# Or using psql
+psql -c "CREATE DATABASE mavibase;"
+```
+
+### Running Migrations
+
+Mavibase uses two migration systems:
+
+```bash
+# Platform migrations (users, teams, projects, etc.)
+pnpm migrate:platform
+
+# Database migrations (document storage schema)
+pnpm migrate:database
+```
+
+## Redis Setup
+
+Redis is used for:
+- Session management
+- Rate limiting
+- Caching
+- Real-time subscriptions (planned)
+
+```bash
+# Install Redis (Ubuntu/Debian)
+sudo apt install redis-server
+
+# Install Redis (macOS)
+brew install redis
+
+# Start Redis
+redis-server
+```
+
+## Verifying Installation
+
+After starting Mavibase, verify the installation:
+
+```bash
+# Check health endpoint
+curl http://localhost:5000/health
+
+# Expected response
+{
+  "status": "ok",
+  "timestamp": "2024-01-01T00:00:00.000Z"
+}
+```
+
+Check individual service health:
+
+```bash
+# Database API health
+curl http://localhost:5000/api/v1/db/health
+
+# Platform API health
+curl http://localhost:5000/api/v1/platform/health
+```
+
+## Running the Web Console
+
+The web console provides a visual interface for managing your Mavibase instance:
+
+```bash
+# Start console only
+pnpm dev:console
+
+# Or start both API and console
+pnpm dev:all
+```
+
+Access the console at `http://localhost:3000`.
+
+## Production Deployment
+
+### Environment Setup
+
+```env
+NODE_ENV=production
+PORT=5000
+
+# Use strong secrets
+JWT_SECRET=generate-a-secure-64-character-random-string
+SESSION_SECRET=another-secure-random-string
+
+# Database with connection pooling
+DATABASE_URL=postgresql://user:password@host:5432/mavibase?sslmode=require
+
+# Redis with password
+REDIS_URL=redis://:password@host:6379
+```
+
+### Building for Production
+
+```bash
+# Build all packages
+pnpm build
+
+# Start production server
+pnpm start
+```
+
+### Using PM2
+
+```bash
+# Install PM2
+npm install -g pm2
+
+# Start with PM2
+pm2 start npm --name "mavibase" -- start
+
+# Save PM2 configuration
+pm2 save
+pm2 startup
+```
+
+## Troubleshooting
+
+### Connection Refused
+
+If you see "ECONNREFUSED" errors:
+
+1. Verify PostgreSQL is running: `pg_isready`
+2. Verify Redis is running: `redis-cli ping`
+3. Check connection strings in `.env`
+
+### Migration Errors
+
+If migrations fail:
+
+1. Ensure database exists: `createdb mavibase`
+2. Check database user permissions
+3. Run migrations again: `pnpm migrate`
+
+### Port Already in Use
+
+```bash
+# Find process using port 5000
+lsof -i :5000
+
+# Kill the process
+kill -9 <PID>
+```
+
+## Next Steps
+
+- [Quick Start Guide](/docs/getting-started/quickstart)
+- [Authentication Guide](/docs/getting-started/authentication)
+- [API Reference](/docs/api/databases)

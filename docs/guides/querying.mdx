@@ -1,0 +1,187 @@
+# Querying Guide
+
+Master the query syntax and operators for retrieving documents from Mavibase.
+
+## Query Syntax
+
+Queries use a concise syntax for filtering documents:
+
+```
+field:operator:value
+```
+
+### Basic Operators
+
+#### Equality
+
+```
+// Equal
+email:eq:user@example.com
+
+// Not equal
+status:ne:inactive
+```
+
+#### Comparison
+
+```
+// Greater than
+age:gt:18
+
+// Greater than or equal
+score:gte:80
+
+// Less than
+price:lt:100
+
+// Less than or equal
+quantity:lte:10
+```
+
+#### String Operations
+
+```
+// Contains
+name:contains:John
+
+// Starts with
+email:startsWith:john
+
+// Ends with
+filename:endsWith:.pdf
+
+// Full-text search
+content:search:database engineering
+```
+
+#### Array Operations
+
+```
+// In array
+status:in:active,pending,draft
+
+// Not in
+role:nin:admin,superuser
+
+// Element match (array contains)
+tags:elemMatch:javascript
+```
+
+#### Range
+
+```
+// Between (inclusive)
+date:between:2024-01-01,2024-12-31
+
+// Range with times
+timestamp:between:2024-01-01T00:00:00Z,2024-01-31T23:59:59Z
+```
+
+#### Null Operations
+
+```
+// Is null
+deletedAt:null:true
+
+// Is not null
+email:null:false
+```
+
+## Complex Queries
+
+### Combining Conditions
+
+Separate conditions with `&` for AND:
+
+```bash
+curl "https://<API_ENDPOINT>/api/v1/db/documents?collection=users&query=status:eq:active&age:gte:18" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+### OR Conditions
+
+```bash
+curl "https://<API_ENDPOINT>/api/v1/db/documents?collection=users&query=status:eq:active|status:eq:pending" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+### NOT Conditions
+
+```bash
+curl "https://<API_ENDPOINT>/api/v1/db/documents?collection=users&query=status:ne:archived" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+## Sorting
+
+### Single Field
+
+```bash
+# Ascending
+?sort=name:asc
+
+# Descending
+?sort=createdAt:desc
+```
+
+### Multiple Fields
+
+```bash
+?sort=priority:desc,name:asc,createdAt:desc
+```
+
+## Pagination
+
+### Offset-Based
+
+```bash
+# Skip first 20, return 10
+?offset=20&limit=10
+```
+
+### Cursor-Based
+
+```bash
+# Get next page using cursor
+?cursor=crs_abc123&limit=10
+```
+
+## Projections
+
+Return only specific fields:
+
+```bash
+?projection=name,email,createdAt
+```
+
+## Advanced Examples
+
+### Active Users by Country
+
+```bash
+curl "https://<API_ENDPOINT>/api/v1/db/documents?collection=users&query=status:eq:active&country:eq:US&createdAt:gte:2024-01-01" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+### Recent High-Value Orders
+
+```bash
+curl "https://<API_ENDPOINT>/api/v1/db/documents?collection=orders&query=total:gte:1000&status:eq:completed&createdAt:desc&limit=50" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+### Search and Filter
+
+```bash
+curl "https://<API_ENDPOINT>/api/v1/db/documents?collection=articles&query=title:search:javascript&status:eq:published&sort=publishedAt:desc&limit=20" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+## Performance Tips
+
+1. **Use Indexes**: Index frequently queried fields
+2. **Filter Early**: Narrow down results as much as possible
+3. **Limit Results**: Use pagination for large result sets
+4. **Project Fields**: Only retrieve needed fields
+5. **Avoid Full-Text Search on Large Collections**: Use indexes
+6. **Batch Queries**: Combine multiple operations when possible

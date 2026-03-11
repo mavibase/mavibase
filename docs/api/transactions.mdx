@@ -1,0 +1,526 @@
+---
+title: Transactions
+description: API reference for managing database transactions
+readTime: 6
+relatedTo:
+  - documents
+  - databases
+---
+
+# Transactions API
+
+Transactions allow you to execute multiple database operations atomically. Either all operations succeed, or all operations are rolled back.
+
+## ACID Properties
+
+Mavibase transactions provide full ACID compliance:
+
+- **Atomicity** - All operations succeed or all fail
+- **Consistency** - Data remains valid after transaction
+- **Isolation** - Concurrent transactions don't interfere
+- **Durability** - Committed changes are permanent
+
+## Authentication
+
+All transaction endpoints require an API key with appropriate scopes:
+
+| Scope | Required For |
+|-------|--------------|
+| `databases:read` | GET requests |
+| `databases:write` | POST requests (begin, commit, rollback) |
+
+---
+
+## Transaction Lifecycle
+
+1. **Begin** - Start a new transaction
+2. **Execute** - Perform operations within the transaction
+3. **Commit** - Save all changes permanently
+4. **Rollback** - Cancel all changes (if needed)
+
+Transactions automatically timeout after 30 seconds of inactivity.
+
+---
+
+## Begin Transaction
+
+Starts a new transaction.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/db/databases/:databaseId/transactions
+```
+
+### Path Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `databaseId` | Database identifier |
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `timeout` | integer | No | Timeout in seconds (default: 30, max: 60) |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/db/databases/db_abc123/transactions" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your_api_key" \
+  -d '{
+    "timeout": 30
+  }'
+```
+
+### JavaScript Example
+
+```javascript
+const response = await fetch(
+  '<API_ENDPOINT>/api/v1/db/databases/db_abc123/transactions',
+  {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': 'your_api_key',
+    },
+    body: JSON.stringify({ timeout: 30 }),
+  }
+);
+
+const { transaction } = await response.json();
+const transactionId = transaction.id;
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "transaction": {
+    "id": "tx_abc123xyz",
+    "status": "active",
+    "startedAt": "2024-01-15T10:30:00.000Z",
+    "expiresAt": "2024-01-15T10:31:00.000Z"
+  }
+}
+```
+
+---
+
+## List Active Transactions
+
+Returns all active transactions for a database.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/db/databases/:databaseId/transactions
+```
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases/db_abc123/transactions" \
+  -H "X-API-Key: your_api_key"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "transactions": [
+    {
+      "id": "tx_abc123xyz",
+      "status": "active",
+      "startedAt": "2024-01-15T10:30:00.000Z",
+      "expiresAt": "2024-01-15T10:31:00.000Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+---
+
+## Get Transaction Status
+
+Retrieves the status of a specific transaction.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/db/databases/:databaseId/transactions/:transactionId
+```
+
+### Path Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `databaseId` | Database identifier |
+| `transactionId` | Transaction identifier |
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases/db_abc123/transactions/tx_abc123xyz" \
+  -H "X-API-Key: your_api_key"
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "transaction": {
+    "id": "tx_abc123xyz",
+    "status": "active",
+    "operations": 3,
+    "startedAt": "2024-01-15T10:30:00.000Z",
+    "expiresAt": "2024-01-15T10:31:00.000Z"
+  }
+}
+```
+
+---
+
+## Commit Transaction
+
+Commits all operations in the transaction, making changes permanent.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/db/databases/:databaseId/transactions/:transactionId/commit
+```
+
+### Path Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `databaseId` | Database identifier |
+| `transactionId` | Transaction identifier |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/db/databases/db_abc123/transactions/tx_abc123xyz/commit" \
+  -H "X-API-Key: your_api_key"
+```
+
+### JavaScript Example
+
+```javascript
+const response = await fetch(
+  '<API_ENDPOINT>/api/v1/db/databases/db_abc123/transactions/tx_abc123xyz/commit',
+  {
+    method: 'POST',
+    headers: {
+      'X-API-Key': 'your_api_key',
+    },
+  }
+);
+
+const result = await response.json();
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Transaction committed successfully",
+  "transaction": {
+    "id": "tx_abc123xyz",
+    "status": "committed",
+    "operationsExecuted": 3,
+    "committedAt": "2024-01-15T10:30:30.000Z"
+  }
+}
+```
+
+---
+
+## Rollback Transaction
+
+Cancels all operations in the transaction, discarding all changes.
+
+### Endpoint
+
+```
+POST <API_ENDPOINT>/api/v1/db/databases/:databaseId/transactions/:transactionId/rollback
+```
+
+### Path Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `databaseId` | Database identifier |
+| `transactionId` | Transaction identifier |
+
+### Example Request
+
+```bash
+curl -X POST "<API_ENDPOINT>/api/v1/db/databases/db_abc123/transactions/tx_abc123xyz/rollback" \
+  -H "X-API-Key: your_api_key"
+```
+
+### JavaScript Example
+
+```javascript
+const response = await fetch(
+  '<API_ENDPOINT>/api/v1/db/databases/db_abc123/transactions/tx_abc123xyz/rollback',
+  {
+    method: 'POST',
+    headers: {
+      'X-API-Key': 'your_api_key',
+    },
+  }
+);
+
+const result = await response.json();
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Transaction rolled back successfully",
+  "transaction": {
+    "id": "tx_abc123xyz",
+    "status": "rolledback",
+    "rolledbackAt": "2024-01-15T10:30:30.000Z"
+  }
+}
+```
+
+---
+
+## Using Transactions
+
+To execute operations within a transaction, include the `X-Transaction-Id` header in your requests.
+
+### Complete Transaction Example
+
+```javascript
+async function transferFunds(fromAccountId, toAccountId, amount) {
+  const API_KEY = 'your_api_key';
+  const BASE_URL = '<API_ENDPOINT>/api/v1/db/databases/db_abc123';
+
+  // 1. Begin transaction
+  const txResponse = await fetch(`${BASE_URL}/transactions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': API_KEY,
+    },
+    body: JSON.stringify({ timeout: 30 }),
+  });
+
+  const { transaction } = await txResponse.json();
+  const txId = transaction.id;
+
+  try {
+    // 2. Get source account
+    const fromResponse = await fetch(
+      `${BASE_URL}/collections/accounts/documents/${fromAccountId}`,
+      {
+        headers: {
+          'X-API-Key': API_KEY,
+          'X-Transaction-Id': txId,
+        },
+      }
+    );
+    const { document: fromAccount } = await fromResponse.json();
+
+    // Check sufficient balance
+    if (fromAccount.data.balance < amount) {
+      throw new Error('Insufficient funds');
+    }
+
+    // 3. Get destination account
+    const toResponse = await fetch(
+      `${BASE_URL}/collections/accounts/documents/${toAccountId}`,
+      {
+        headers: {
+          'X-API-Key': API_KEY,
+          'X-Transaction-Id': txId,
+        },
+      }
+    );
+    const { document: toAccount } = await toResponse.json();
+
+    // 4. Deduct from source
+    await fetch(
+      `${BASE_URL}/collections/accounts/documents/${fromAccountId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': API_KEY,
+          'X-Transaction-Id': txId,
+        },
+        body: JSON.stringify({
+          data: { balance: fromAccount.data.balance - amount },
+        }),
+      }
+    );
+
+    // 5. Add to destination
+    await fetch(`${BASE_URL}/collections/accounts/documents/${toAccountId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': API_KEY,
+        'X-Transaction-Id': txId,
+      },
+      body: JSON.stringify({
+        data: { balance: toAccount.data.balance + amount },
+      }),
+    });
+
+    // 6. Create transaction record
+    await fetch(`${BASE_URL}/collections/transfers/documents`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': API_KEY,
+        'X-Transaction-Id': txId,
+      },
+      body: JSON.stringify({
+        data: {
+          from: fromAccountId,
+          to: toAccountId,
+          amount,
+          timestamp: new Date().toISOString(),
+        },
+      }),
+    });
+
+    // 7. Commit transaction
+    await fetch(`${BASE_URL}/transactions/${txId}/commit`, {
+      method: 'POST',
+      headers: { 'X-API-Key': API_KEY },
+    });
+
+    return { success: true, transactionId: txId };
+  } catch (error) {
+    // Rollback on any error
+    await fetch(`${BASE_URL}/transactions/${txId}/rollback`, {
+      method: 'POST',
+      headers: { 'X-API-Key': API_KEY },
+    });
+
+    throw error;
+  }
+}
+```
+
+### Node.js Example with Error Handling
+
+```javascript
+const axios = require('axios');
+
+class TransactionClient {
+  constructor(baseUrl, apiKey) {
+    this.baseUrl = baseUrl;
+    this.apiKey = apiKey;
+    this.transactionId = null;
+  }
+
+  async begin(timeout = 30) {
+    const response = await axios.post(
+      `${this.baseUrl}/transactions`,
+      { timeout },
+      { headers: { 'X-API-Key': this.apiKey } }
+    );
+    this.transactionId = response.data.transaction.id;
+    return this.transactionId;
+  }
+
+  async commit() {
+    if (!this.transactionId) throw new Error('No active transaction');
+    const response = await axios.post(
+      `${this.baseUrl}/transactions/${this.transactionId}/commit`,
+      {},
+      { headers: { 'X-API-Key': this.apiKey } }
+    );
+    this.transactionId = null;
+    return response.data;
+  }
+
+  async rollback() {
+    if (!this.transactionId) return;
+    const response = await axios.post(
+      `${this.baseUrl}/transactions/${this.transactionId}/rollback`,
+      {},
+      { headers: { 'X-API-Key': this.apiKey } }
+    );
+    this.transactionId = null;
+    return response.data;
+  }
+
+  getHeaders() {
+    const headers = { 'X-API-Key': this.apiKey };
+    if (this.transactionId) {
+      headers['X-Transaction-Id'] = this.transactionId;
+    }
+    return headers;
+  }
+}
+
+// Usage
+const tx = new TransactionClient('<API_ENDPOINT>/api/v1/db/databases/db_abc123', 'api_key');
+
+try {
+  await tx.begin();
+  // ... perform operations using tx.getHeaders() ...
+  await tx.commit();
+} catch (error) {
+  await tx.rollback();
+  throw error;
+}
+```
+
+---
+
+## Transaction Statuses
+
+| Status | Description |
+|--------|-------------|
+| `active` | Transaction is in progress |
+| `committed` | Transaction completed successfully |
+| `rolledback` | Transaction was cancelled |
+| `expired` | Transaction timed out |
+
+---
+
+## Error Responses
+
+### 408 Request Timeout
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "TRANSACTION_EXPIRED",
+    "message": "Transaction has expired"
+  }
+}
+```
+
+### 409 Conflict
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "TRANSACTION_CONFLICT",
+    "message": "Transaction conflicts with another operation"
+  }
+}
+```

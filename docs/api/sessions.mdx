@@ -1,0 +1,262 @@
+---
+title: Sessions
+description: API reference for managing user sessions
+readTime: 4
+relatedTo:
+  - auth
+  - users
+  - two-factor
+---
+
+# Sessions API
+
+Sessions represent active login sessions for a user. Manage sessions to monitor access and revoke unauthorized sessions.
+
+## Authentication
+
+All session endpoints require JWT authentication:
+
+```
+Authorization: Bearer your_jwt_token
+```
+
+---
+
+## List Sessions
+
+Returns all active sessions for the authenticated user.
+
+### Endpoint
+
+```
+GET <API_ENDPOINT>/api/v1/platform/sessions
+```
+
+### Example Request
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/platform/sessions" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### JavaScript Example
+
+```javascript
+const response = await fetch('<API_ENDPOINT>/api/v1/platform/sessions', {
+  headers: {
+    Authorization: `Bearer ${token}`,
+  },
+});
+
+const { sessions } = await response.json();
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "sessions": [
+    {
+      "id": "sess_abc123",
+      "current": true,
+      "device": "Chrome on macOS",
+      "ip": "192.168.1.1",
+      "location": "San Francisco, CA",
+      "lastActive": "2024-01-15T14:30:00.000Z",
+      "createdAt": "2024-01-15T10:30:00.000Z"
+    },
+    {
+      "id": "sess_def456",
+      "current": false,
+      "device": "Safari on iPhone",
+      "ip": "192.168.1.2",
+      "location": "San Francisco, CA",
+      "lastActive": "2024-01-14T20:00:00.000Z",
+      "createdAt": "2024-01-10T09:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+## Revoke Session
+
+Revokes a specific session, logging out that device.
+
+### Endpoint
+
+```
+DELETE <API_ENDPOINT>/api/v1/platform/sessions/:sessionId
+```
+
+### Path Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `sessionId` | Session identifier |
+
+### Example Request
+
+```bash
+curl -X DELETE "<API_ENDPOINT>/api/v1/platform/sessions/sess_def456" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### JavaScript Example
+
+```javascript
+const response = await fetch(
+  '<API_ENDPOINT>/api/v1/platform/sessions/sess_def456',
+  {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  }
+);
+
+const result = await response.json();
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Session revoked successfully"
+}
+```
+
+**Note**: You cannot revoke your current session. Use the logout endpoint instead.
+
+---
+
+## Revoke All Sessions
+
+Revokes all sessions except the current one.
+
+### Endpoint
+
+```
+DELETE <API_ENDPOINT>/api/v1/platform/sessions
+```
+
+### Example Request
+
+```bash
+curl -X DELETE "<API_ENDPOINT>/api/v1/platform/sessions" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### JavaScript Example
+
+```javascript
+const response = await fetch('<API_ENDPOINT>/api/v1/platform/sessions', {
+  method: 'DELETE',
+  headers: {
+    Authorization: `Bearer ${token}`,
+  },
+});
+
+const result = await response.json();
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "All other sessions revoked",
+  "revokedCount": 3
+}
+```
+
+---
+
+## Session Security
+
+### Detecting Suspicious Sessions
+
+```javascript
+async function checkSuspiciousSessions() {
+  const response = await fetch('<API_ENDPOINT>/api/v1/platform/sessions', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  const { sessions } = await response.json();
+
+  // Check for sessions from unusual locations
+  const currentLocation = sessions.find((s) => s.current)?.location;
+  const suspicious = sessions.filter(
+    (s) => !s.current && s.location !== currentLocation
+  );
+
+  if (suspicious.length > 0) {
+    console.log('Suspicious sessions detected:', suspicious);
+    // Optionally revoke them
+    for (const session of suspicious) {
+      await fetch(`<API_ENDPOINT>/api/v1/platform/sessions/${session.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    }
+  }
+}
+```
+
+### Session Management Dashboard Example
+
+```javascript
+async function getSessionsDashboard() {
+  const response = await fetch('<API_ENDPOINT>/api/v1/platform/sessions', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  const { sessions } = await response.json();
+
+  return {
+    totalSessions: sessions.length,
+    currentSession: sessions.find((s) => s.current),
+    otherSessions: sessions.filter((s) => !s.current),
+    byDevice: sessions.reduce((acc, s) => {
+      const device = s.device.split(' on ')[0];
+      acc[device] = (acc[device] || 0) + 1;
+      return acc;
+    }, {}),
+    byLocation: sessions.reduce((acc, s) => {
+      acc[s.location] = (acc[s.location] || 0) + 1;
+      return acc;
+    }, {}),
+  };
+}
+```
+
+---
+
+## Error Responses
+
+### 400 Bad Request
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "INVALID_SESSION",
+    "message": "Cannot revoke current session"
+  }
+}
+```
+
+### 404 Not Found
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Session not found"
+  }
+}
+```

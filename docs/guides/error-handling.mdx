@@ -1,0 +1,145 @@
+# Error Handling
+
+Learn how to handle errors in Mavibase API calls.
+
+## HTTP Status Codes
+
+### 2xx Success
+
+- **200 OK**: Request successful
+- **201 Created**: Resource created
+- **204 No Content**: Success, no content to return
+
+### 4xx Client Errors
+
+- **400 Bad Request**: Invalid request format
+- **401 Unauthorized**: Missing or invalid authentication
+- **403 Forbidden**: Insufficient permissions
+- **404 Not Found**: Resource not found
+- **409 Conflict**: Request conflicts with current state
+- **422 Unprocessable Entity**: Validation failed
+- **429 Too Many Requests**: Rate limited
+
+### 5xx Server Errors
+
+- **500 Internal Server Error**: Server error
+- **502 Bad Gateway**: Temporary service issue
+- **503 Service Unavailable**: Service temporarily unavailable
+
+## Error Response Format
+
+```javascript
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Email must be a valid email address",
+    "details": [
+      {
+        "field": "email",
+        "message": "Invalid email format"
+      }
+    ]
+  }
+}
+```
+
+## Common Error Codes
+
+### Authentication
+
+- `AUTHENTICATION_FAILED`: Invalid credentials
+- `TOKEN_EXPIRED`: Session token expired
+- `INVALID_API_KEY`: API key is invalid
+- `API_KEY_REVOKED`: API key has been revoked
+
+### Authorization
+
+- `INSUFFICIENT_PERMISSIONS`: User lacks required permissions
+- `RESOURCE_FORBIDDEN`: User cannot access resource
+
+### Validation
+
+- `VALIDATION_ERROR`: Request validation failed
+- `INVALID_FIELD_TYPE`: Field has wrong type
+- `REQUIRED_FIELD_MISSING`: Required field missing
+- `UNIQUE_CONSTRAINT_VIOLATION`: Value must be unique
+
+### Database
+
+- `COLLECTION_NOT_FOUND`: Collection doesn't exist
+- `DOCUMENT_NOT_FOUND`: Document doesn't exist
+- `DUPLICATE_KEY`: Unique constraint violated
+
+### Transaction
+
+- `TRANSACTION_NOT_FOUND`: Transaction doesn't exist
+- `TRANSACTION_TIMEOUT`: Transaction exceeded timeout
+- `CONFLICT`: Document modified by another transaction
+- `DEADLOCK`: Circular transaction dependency
+
+### Rate Limiting
+
+- `RATE_LIMITED`: Request rate limit exceeded
+- `QUOTA_EXCEEDED`: Usage quota exceeded
+
+## Handling Errors
+
+### Try-Catch Pattern
+
+```javascript
+try {
+  const user = await client.documents.get({
+    collection: 'users',
+    id: 'user_123'
+  });
+} catch (error) {
+  if (error.code === 'DOCUMENT_NOT_FOUND') {
+    console.log('User not found');
+  } else if (error.code === 'INSUFFICIENT_PERMISSIONS') {
+    console.log('Access denied');
+  } else {
+    console.error('Unexpected error:', error);
+  }
+}
+```
+
+### Retry with Exponential Backoff
+
+```javascript
+async function withRetry(fn, maxRetries = 3) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      // Retry on server errors and rate limiting
+      const retryable = error.status >= 500 || error.code === 'RATE_LIMITED';
+      
+      if (!retryable || attempt === maxRetries - 1) {
+        throw error;
+      }
+      
+      const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+}
+
+// Usage
+const user = await withRetry(() =>
+  client.documents.get({
+    collection: 'users',
+    id: 'user_123'
+  })
+);
+```
+
+## Best Practices
+
+1. **Handle Specific Errors**: Check error codes, not just messages
+2. **Implement Retry Logic**: For transient failures
+3. **Log Errors**: Include request IDs for debugging
+4. **User-Friendly Messages**: Don't expose internal details
+5. **Rate Limit Handling**: Respect `Retry-After` headers
+6. **Timeout Handling**: Set appropriate timeouts
+7. **Validate Input**: Prevent validation errors
+8. **Test Error Paths**: Verify error handling works

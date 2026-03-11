@@ -1,0 +1,311 @@
+# Multi-Tenancy
+
+Learn how to build multi-tenant applications with Mavibase's built-in multi-tenancy support.
+
+## Overview
+
+Mavibase provides native multi-tenancy capabilities, allowing you to securely isolate data between different customers, teams, or organizations.
+
+## Architecture
+
+```
+Platform
+  └── Team
+       ├── Project
+       │    └── Database
+       │         ├── Collection
+       │         │    └── Documents
+```
+
+### Team
+
+A **team** represents an organization or group of users:
+- Billing entity
+- Access control boundary
+- User management scope
+
+### Project
+
+A **project** belongs to a team:
+- Contains databases
+- API keys scoped to project
+- Audit logs per project
+
+### Database
+
+Belongs to one project:
+- Top-level data container
+- Isolation point for data
+
+## Isolation Levels
+
+### Project-Level Isolation
+
+Projects within a team are isolated:
+- Different API keys per project
+- Separate audit logs
+- Distinct databases
+
+### Team-Level Isolation
+
+Teams have complete data separation:
+- Different database instances
+- Separate user pools
+- Independent configurations
+
+### Row-Level Isolation
+
+Documents within a collection can be isolated using RLS:
+
+```javascript
+{
+  "collection": "documents",
+  "role": "user",
+  "rules": [
+    {
+      "action": "read",
+      "condition": {
+        "field": "team_id",
+        "operator": "equals",
+        "value": "{{ auth.teamId }}"
+      }
+    }
+  ]
+}
+```
+
+## Multi-Tenant Data Design
+
+### Explicit Team Field
+
+Include team identifier in every document:
+
+```javascript
+{
+  "_id": "doc_123",
+  "team_id": "team_456",
+  "name": "Project Alpha",
+  "status": "active"
+}
+```
+
+### Indexing for Performance
+
+Create indexes on team fields:
+
+```bash
+curl -X POST https://<API_ENDPOINT>/api/v1/db/indexes \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -d '{
+    "collection": "documents",
+    "fields": {
+      "team_id": 1
+    },
+    "unique": false
+  }'
+```
+
+### Query by Team
+
+```bash
+curl "https://<API_ENDPOINT>/api/v1/db/documents?collection=documents&query=team_id:eq:team_456" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+## Authentication & Authorization
+
+### User Registration
+
+Register users within a team:
+
+```bash
+curl -X POST https://<API_ENDPOINT>/api/v1/platform/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "secure_password",
+    "teamId": "team_456"
+  }'
+```
+
+### Project-Scoped API Keys
+
+Create API keys per project:
+
+```bash
+curl -X POST https://<API_ENDPOINT>/api/v1/platform/api-keys \
+  -H "Authorization: Bearer SESSION_TOKEN" \
+  -d '{
+    "name": "Mobile App",
+    "projectId": "project_789",
+    "scopes": ["documents:read", "documents:create"]
+  }'
+```
+
+## Access Control Patterns
+
+### Team Owner
+
+Can manage entire team:
+
+```javascript
+{
+  "role": "team_owner",
+  "permissions": ["*:*:*"]
+}
+```
+
+### Project Manager
+
+Manages specific project:
+
+```javascript
+{
+  "role": "project_manager",
+  "projectId": "project_789",
+  "permissions": [
+    "db:*",
+    "collections:*",
+    "documents:*"
+  ]
+}
+```
+
+### End User
+
+Access own data within team:
+
+```javascript
+{
+  "role": "user",
+  "rules": [
+    {
+      "action": "read",
+      "condition": {
+        "field": "user_id",
+        "operator": "equals",
+        "value": "{{ auth.userId }}"
+      }
+    }
+  ]
+}
+```
+
+## Best Practices
+
+1. **Always Include Team ID**: Every document in shared collections
+2. **Enforce Team ID in RLS**: Prevent cross-team data access
+3. **Validate Team Context**: Check team_id matches authenticated user
+4. **Index Team Fields**: Optimize team-filtered queries
+5. **Separate Critical Data**: Consider separate databases for sensitive data
+6. **Audit Team Actions**: Log all team-level operations
+7. **Test Isolation**: Verify users can't access other teams' data
+8. **Plan for Scale**: Design collections to handle multi-tenant growth
+
+## Example: SaaS Application
+
+### Database Schema
+
+```javascript
+// teams collection
+{
+  "_id": "team_456",
+  "name": "Acme Corp",
+  "owner_id": "user_123"
+}
+
+// projects collection
+{
+  "_id": "project_789",
+  "team_id": "team_456",
+  "name": "Mobile App"
+}
+
+// documents collection
+{
+  "_id": "doc_123",
+  "team_id": "team_456",
+  "project_id": "project_789",
+  "title": "Document Title",
+  "owner_id": "user_123"
+}
+```
+
+### Permission Rules
+
+```javascript
+// Team members can only read their team's documents
+{
+  "collection": "documents",
+  "role": "team_member",
+  "rules": [
+    {
+      "action": "read",
+      "condition": {
+        "field": "team_id",
+        "operator": "equals",
+        "value": "{{ auth.teamId }}"
+      }
+    }
+  ]
+}
+
+// Users can only modify their own documents
+{
+  "collection": "documents",
+  "role": "team_member",
+  "rules": [
+    {
+      "action": "update",
+      "condition": {
+        "field": "owner_id",
+        "operator": "equals",
+        "value": "{{ auth.userId }}"
+      }
+    }
+  ]
+}
+```
+
+### API Usage
+
+```javascript
+// Get team's documents
+const documents = await client.documents.list({
+  collection: 'documents',
+  query: {
+    team_id: { $eq: authContext.teamId }
+  }
+});
+
+// Create document for team
+await client.documents.create({
+  collection: 'documents',
+  data: {
+    team_id: authContext.teamId,
+    title: 'New Document',
+    owner_id: authContext.userId
+  }
+});
+```
+
+## Scaling Considerations
+
+### Document Limits per Collection
+
+Plan collection growth:
+- Millions of documents: Add team_id index
+- Billions of documents: Consider sharding by team
+
+### Query Performance
+
+Optimize multi-tenant queries:
+- Always filter by team_id first
+- Use indexed team fields
+- Consider denormalization for frequently accessed data
+
+### Data Backup
+
+Backup by team:
+- Separate backup per team
+- Enable point-in-time recovery per team

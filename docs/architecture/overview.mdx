@@ -1,0 +1,159 @@
+---
+title: Architecture Overview
+description: High-level architecture and system design of the Mavibase platform.
+---
+
+# Architecture Overview
+
+Mavibase is a multi-tenant Backend as a Service (BaaS) platform built as a pnpm monorepo.
+
+---
+
+## High-Level Architecture
+
+The Mavibase platform follows a layered architecture designed for scalability and security.
+
+### Request Flow Layers
+
+| Layer | Components | Description |
+|-------|------------|-------------|
+| **Clients** | Web, Mobile, Server Applications | External applications consuming the API |
+| **Load Balancer** | Nginx, Cloud LB | Distributes traffic across API instances |
+| **API Layer** | REST API (port 5000), Realtime API (WebSockets) | Handles incoming requests and real-time connections |
+| **Security Layer** | Auth, Rate Limiting, CORS, Validation | Protects and validates all incoming requests |
+| **Executor** | Query Engine, Schema Validation | Processes database operations and validates data |
+| **Data Layer** | PostgreSQL, Redis | Persistent storage and caching |
+
+### Data Flow
+
+1. **Clients** connect through the **Load Balancer**
+2. Requests are routed to either the **REST API** or **Realtime API**
+3. The **Security Layer** validates authentication and applies rate limits
+4. The **Executor** processes queries and validates schemas
+5. **Redis** handles caching and session storage
+6. **PostgreSQL** serves as the primary data store
+
+### Background Processing
+
+Redis also powers a job queue for background workers that handle:
+- Build processes
+- Audit logging
+- Email delivery
+- Webhook dispatching
+- Function execution
+
+---
+
+## Monorepo Structure
+
+The codebase is organized as a pnpm monorepo with two applications and four shared packages:
+
+### Applications
+
+| App | Path | Description |
+|-----|------|-------------|
+| **Server** | `apps/server/` | Express.js API server (entry: `src/main.ts`) |
+| **Console** | `apps/console/` | Next.js 16 web console with App Router |
+
+### Packages
+
+| Package | Path | Description |
+|---------|------|-------------|
+| **Core** | `packages/core/` | Shared TypeScript interfaces, error classes, and utilities |
+| **Database** | `packages/database/` | Query parser, executor, schema validation, transactions, versioning |
+| **API** | `packages/api/` | REST controllers, routes, middleware, input validators |
+| **Platform** | `packages/platform/` | Auth, users, teams, projects, sessions, MFA |
+
+### Directory Layout
+
+```
+mavibase/
+├── apps/
+│   ├── server/              # Express.js API server
+│   └── console/             # Next.js 16 web console
+├── packages/
+│   ├── core/                # Shared utilities and types
+│   ├── database/            # Database engine
+│   ├── api/                 # REST API layer
+│   └── platform/            # Platform services
+├── migrations/              # SQL migration files
+├── scripts/                 # Build and utility scripts
+└── docs/                    # Documentation
+```
+
+---
+
+## Tech Stack
+
+### Backend
+
+| Component | Technology |
+|-----------|------------|
+| Runtime | Node.js 20+ |
+| Framework | Express.js |
+| Language | TypeScript 5.3+ |
+| Database | PostgreSQL 14+ |
+| Cache | Redis 6+ |
+| Auth | JWT + Argon2/bcrypt |
+| Logging | Winston |
+| Security | Helmet, CORS, rate-limit |
+
+### Frontend
+
+| Component | Technology |
+|-----------|------------|
+| Framework | Next.js 16 (App Router) |
+| UI Library | React 19 |
+| Components | shadcn/ui + Radix UI |
+| Styling | Tailwind CSS v4 |
+| State | SWR |
+| Forms | React Hook Form + Zod |
+| Tables | TanStack Table |
+
+---
+
+## Multi-Tenancy Model
+
+Mavibase uses **schema-based multi-tenancy** for complete data isolation:
+
+### Platform Database (`mavibase_platform`)
+
+Stores all platform-level data in a single shared schema:
+- Users and authentication
+- Teams and memberships
+- Projects and configurations
+- Sessions and tokens
+- API keys and scopes
+
+### Data Database (`mavibase_db`)
+
+Each project receives an isolated PostgreSQL schema:
+- Schema naming: `project_{projectId}`
+- Complete data isolation between projects
+- Independent collections, documents, and indexes
+
+**Example Structure:**
+
+| Schema | Contents |
+|--------|----------|
+| `project_abc123` | documents, collections, indexes, permissions, versions |
+| `project_def456` | documents, collections, indexes, permissions, versions |
+| `project_ghi789` | documents, collections, indexes, permissions, versions |
+
+---
+
+## Request Flow
+
+A typical API request flows through the following stages:
+
+1. **Client** sends request to API endpoint
+2. **Security Layer** validates JWT or API key, checks rate limits
+3. **Router** directs request to appropriate controller
+4. **Controller** validates input using Zod schemas
+5. **Service** executes business logic
+6. **Database Layer** performs queries with connection pooling
+7. **Response** is formatted and returned to client
+
+### Error Handling
+
+Errors are caught at each layer and transformed into consistent API responses with appropriate HTTP status codes and error messages.

@@ -1,0 +1,419 @@
+---
+title: Querying
+description: Learn how to query documents with Mavibase's powerful query language
+readTime: 10
+relatedTo:
+  - documents
+  - indexes
+  - collections
+---
+
+# Querying
+
+Mavibase provides a powerful JSON-based query language with support for filtering, sorting, pagination, and full-text search.
+
+## Query Parameters
+
+Queries are passed as URL query parameters when listing documents:
+
+```
+GET <API_ENDPOINT>/api/v1/db/databases/:databaseId/collections/:collectionId/documents?[query_params]
+```
+
+## Basic Filtering
+
+### Equal
+
+Filter documents where a field equals a value.
+
+```bash
+# Find users with role "admin"
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_users/documents?role=admin" \
+  -H "X-API-Key: your_api_key"
+```
+
+### Multiple Conditions
+
+Combine multiple filters (AND logic).
+
+```bash
+# Find active admin users
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_users/documents?role=admin&isActive=true" \
+  -H "X-API-Key: your_api_key"
+```
+
+## Query Operators
+
+Mavibase supports a comprehensive set of query operators. Use the `filters` query parameter with JSON encoding for complex queries.
+
+### Comparison Operators
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `equal` | Exact match | `{"age": {"equal": 25}}` |
+| `notEqual` | Not equal to | `{"status": {"notEqual": "deleted"}}` |
+| `lessThan` | Less than | `{"age": {"lessThan": 30}}` |
+| `lessThanOrEqual` | Less than or equal | `{"age": {"lessThanOrEqual": 30}}` |
+| `greaterThan` | Greater than | `{"age": {"greaterThan": 18}}` |
+| `greaterThanOrEqual` | Greater than or equal | `{"age": {"greaterThanOrEqual": 21}}` |
+| `between` | Range (inclusive) | `{"age": {"between": [18, 65]}}` |
+
+### String Operators
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `contains` | Contains substring | `{"name": {"contains": "john"}}` |
+| `startsWith` | Starts with | `{"email": {"startsWith": "admin"}}` |
+| `endsWith` | Ends with | `{"email": {"endsWith": "@gmail.com"}}` |
+| `search` | Full-text search | `{"title": {"search": "react tutorial"}}` |
+
+### Array Operators
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `in` | Value in array | `{"status": {"in": ["active", "pending"]}}` |
+| `notIn` | Value not in array | `{"role": {"notIn": ["banned", "suspended"]}}` |
+
+### Null Operators
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `isNull` | Is null | `{"deletedAt": {"isNull": true}}` |
+| `isNotNull` | Is not null | `{"verifiedAt": {"isNotNull": true}}` |
+
+### Logical Operators
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `and` | All conditions must match | `{"and": [{...}, {...}]}` |
+| `or` | Any condition must match | `{"or": [{...}, {...}]}` |
+| `not` | Negate condition | `{"not": {"status": "deleted"}}` |
+
+---
+
+## Query Examples
+
+### Simple Equality
+
+```bash
+# Find user by email
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_users/documents?email=john@example.com" \
+  -H "X-API-Key: your_api_key"
+```
+
+### Range Query
+
+```bash
+# Find users between 25 and 35 years old
+filters='{"age":{"between":[25,35]}}'
+encoded_filters=$(echo $filters | jq -sRr @uri)
+
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_users/documents?filters=$encoded_filters" \
+  -H "X-API-Key: your_api_key"
+```
+
+### JavaScript Example - Range Query
+
+```javascript
+const filters = {
+  age: { between: [25, 35] },
+};
+
+const params = new URLSearchParams({
+  filters: JSON.stringify(filters),
+});
+
+const response = await fetch(
+  `<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_users/documents?${params}`,
+  {
+    headers: { 'X-API-Key': 'your_api_key' },
+  }
+);
+
+const { documents } = await response.json();
+```
+
+### String Search
+
+```bash
+# Find users whose name contains "smith"
+filters='{"name":{"contains":"smith"}}'
+encoded_filters=$(echo $filters | jq -sRr @uri)
+
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_users/documents?filters=$encoded_filters" \
+  -H "X-API-Key: your_api_key"
+```
+
+### Full-Text Search
+
+```bash
+# Search posts for "javascript tutorial"
+filters='{"title":{"search":"javascript tutorial"}}'
+encoded_filters=$(echo $filters | jq -sRr @uri)
+
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_posts/documents?filters=$encoded_filters" \
+  -H "X-API-Key: your_api_key"
+```
+
+### OR Condition
+
+```bash
+# Find users who are either admins or moderators
+filters='{"or":[{"role":{"equal":"admin"}},{"role":{"equal":"moderator"}}]}'
+encoded_filters=$(echo $filters | jq -sRr @uri)
+
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_users/documents?filters=$encoded_filters" \
+  -H "X-API-Key: your_api_key"
+```
+
+### JavaScript Example - OR Condition
+
+```javascript
+const filters = {
+  or: [{ role: { equal: 'admin' } }, { role: { equal: 'moderator' } }],
+};
+
+const params = new URLSearchParams({
+  filters: JSON.stringify(filters),
+});
+
+const response = await fetch(
+  `<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_users/documents?${params}`,
+  {
+    headers: { 'X-API-Key': 'your_api_key' },
+  }
+);
+```
+
+### AND Condition
+
+```bash
+# Find active premium users
+filters='{"and":[{"isActive":{"equal":true}},{"plan":{"equal":"premium"}}]}'
+encoded_filters=$(echo $filters | jq -sRr @uri)
+
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_users/documents?filters=$encoded_filters" \
+  -H "X-API-Key: your_api_key"
+```
+
+### Complex Nested Query
+
+```javascript
+// Find active users who are either admins or have premium plan
+// and registered in 2024
+const filters = {
+  and: [
+    { isActive: { equal: true } },
+    {
+      or: [{ role: { equal: 'admin' } }, { plan: { equal: 'premium' } }],
+    },
+    { createdAt: { greaterThanOrEqual: '2024-01-01T00:00:00Z' } },
+  ],
+};
+
+const params = new URLSearchParams({
+  filters: JSON.stringify(filters),
+});
+
+const response = await fetch(
+  `<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_users/documents?${params}`,
+  {
+    headers: { 'X-API-Key': 'your_api_key' },
+  }
+);
+```
+
+### NOT Condition
+
+```bash
+# Find all non-deleted users
+filters='{"not":{"status":{"equal":"deleted"}}}'
+encoded_filters=$(echo $filters | jq -sRr @uri)
+
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_users/documents?filters=$encoded_filters" \
+  -H "X-API-Key: your_api_key"
+```
+
+### IN Operator
+
+```bash
+# Find users with specific roles
+filters='{"role":{"in":["admin","moderator","editor"]}}'
+encoded_filters=$(echo $filters | jq -sRr @uri)
+
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_users/documents?filters=$encoded_filters" \
+  -H "X-API-Key: your_api_key"
+```
+
+---
+
+## Sorting
+
+Sort results using `orderBy` and `order` parameters.
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `orderBy` | string | `createdAt` | Field to sort by |
+| `order` | string | `desc` | Sort direction: `asc` or `desc` |
+
+### Example - Sort by Name
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_users/documents?orderBy=name&order=asc" \
+  -H "X-API-Key: your_api_key"
+```
+
+### Example - Sort by Date Descending
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_users/documents?orderBy=createdAt&order=desc" \
+  -H "X-API-Key: your_api_key"
+```
+
+### JavaScript Example
+
+```javascript
+const params = new URLSearchParams({
+  orderBy: 'createdAt',
+  order: 'desc',
+  limit: '20',
+});
+
+const response = await fetch(
+  `<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_users/documents?${params}`,
+  {
+    headers: { 'X-API-Key': 'your_api_key' },
+  }
+);
+```
+
+---
+
+## Pagination
+
+Control result set size and offset with `limit` and `offset`.
+
+### Parameters
+
+| Parameter | Type | Default | Max | Description |
+|-----------|------|---------|-----|-------------|
+| `limit` | integer | 25 | 100 | Maximum results to return |
+| `offset` | integer | 0 | - | Number of results to skip |
+
+### Example - First Page
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_users/documents?limit=10&offset=0" \
+  -H "X-API-Key: your_api_key"
+```
+
+### Example - Second Page
+
+```bash
+curl -X GET "<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_users/documents?limit=10&offset=10" \
+  -H "X-API-Key: your_api_key"
+```
+
+### Response with Pagination Info
+
+```json
+{
+  "success": true,
+  "documents": [...],
+  "total": 150,
+  "limit": 10,
+  "offset": 10,
+  "hasMore": true
+}
+```
+
+### JavaScript Pagination Helper
+
+```javascript
+async function fetchAllDocuments(databaseId, collectionId, pageSize = 25) {
+  const documents = [];
+  let offset = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const params = new URLSearchParams({
+      limit: pageSize.toString(),
+      offset: offset.toString(),
+    });
+
+    const response = await fetch(
+      `<API_ENDPOINT>/api/v1/db/databases/${databaseId}/collections/${collectionId}/documents?${params}`,
+      {
+        headers: { 'X-API-Key': 'your_api_key' },
+      }
+    );
+
+    const data = await response.json();
+    documents.push(...data.documents);
+
+    hasMore = data.hasMore;
+    offset += pageSize;
+  }
+
+  return documents;
+}
+```
+
+---
+
+## Complete Query Example
+
+Combining filters, sorting, and pagination:
+
+```javascript
+async function searchUsers(searchTerm, filters = {}, page = 1, pageSize = 10) {
+  const queryFilters = {
+    and: [
+      { isActive: { equal: true } },
+      {
+        or: [
+          { name: { contains: searchTerm } },
+          { email: { contains: searchTerm } },
+        ],
+      },
+      ...Object.entries(filters).map(([key, value]) => ({
+        [key]: { equal: value },
+      })),
+    ],
+  };
+
+  const params = new URLSearchParams({
+    filters: JSON.stringify(queryFilters),
+    orderBy: 'name',
+    order: 'asc',
+    limit: pageSize.toString(),
+    offset: ((page - 1) * pageSize).toString(),
+  });
+
+  const response = await fetch(
+    `<API_ENDPOINT>/api/v1/db/databases/db_abc123/collections/col_users/documents?${params}`,
+    {
+      headers: { 'X-API-Key': 'your_api_key' },
+    }
+  );
+
+  return response.json();
+}
+
+// Usage
+const results = await searchUsers('john', { role: 'admin' }, 1, 20);
+```
+
+---
+
+## Query Performance Tips
+
+1. **Use indexes** - Create indexes on frequently queried fields
+2. **Limit results** - Always use reasonable `limit` values
+3. **Be specific** - More specific queries are faster
+4. **Avoid NOT** - `not` operators can be slower than positive matches
+5. **Index for sorting** - Create indexes on fields used in `orderBy`
+
+See the [Indexes API](/docs/api/indexes) for creating indexes.
