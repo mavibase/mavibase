@@ -14,3 +14,4 @@ export * from './middleware/rate-limiter';
 export * from './middleware/request-id';
 export * from './middleware/request-logger';
 export * from './middleware/request-size';
+export * from './middleware/slow-query-context';

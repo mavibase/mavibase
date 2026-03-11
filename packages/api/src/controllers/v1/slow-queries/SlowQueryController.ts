@@ -23,7 +23,16 @@ export class SlowQueryController {
       const sortBy = (req.query.sort_by as string) === "duration" ? "duration_ms" : "created_at"
       const sortOrder = (req.query.sort_order as string) === "asc" ? "ASC" : "DESC"
 
-      let whereClauses = ["(database_id = $1 OR database_id IS NULL)"]
+      // Verify the database belongs to the requester's project before listing
+      const dbCheck = await pool.query(
+        `SELECT id FROM databases WHERE id = $1 AND project_id = $2`,
+        [databaseId, projectId]
+      )
+      if (dbCheck.rows.length === 0) {
+        throw new AppError(403, "FORBIDDEN", "Database not found or access denied")
+      }
+
+      let whereClauses = ["database_id = $1"]
       let params: any[] = [databaseId]
       let paramIndex = 2
 
@@ -86,6 +95,15 @@ export class SlowQueryController {
         throw new AppError(500, "MISSING_PROJECT_CONTEXT", "Project context not found in identity")
       }
 
+      // Verify the database belongs to the requester's project
+      const dbCheck = await pool.query(
+        `SELECT id FROM databases WHERE id = $1 AND project_id = $2`,
+        [databaseId, projectId]
+      )
+      if (dbCheck.rows.length === 0) {
+        throw new AppError(403, "FORBIDDEN", "Database not found or access denied")
+      }
+
       const result = await pool.query(
         `SELECT 
           COUNT(*) as total_slow_queries,
@@ -97,7 +115,7 @@ export class SlowQueryController {
           COUNT(CASE WHEN created_at > NOW() - INTERVAL '24 hours' THEN 1 END) as last_24h,
           COUNT(CASE WHEN created_at > NOW() - INTERVAL '7 days' THEN 1 END) as last_7d
         FROM slow_query_logs
-        WHERE database_id = $1 OR database_id IS NULL`,
+        WHERE database_id = $1`,
         [databaseId]
       )
 
@@ -105,7 +123,7 @@ export class SlowQueryController {
       const operationBreakdown = await pool.query(
         `SELECT operation, COUNT(*) as count, AVG(duration_ms)::INTEGER as avg_duration
          FROM slow_query_logs
-         WHERE database_id = $1 OR database_id IS NULL
+         WHERE database_id = $1
          GROUP BY operation
          ORDER BY count DESC`,
         [databaseId]
@@ -118,7 +136,7 @@ export class SlowQueryController {
           COUNT(*) as count,
           AVG(duration_ms)::INTEGER as avg_duration
         FROM slow_query_logs
-        WHERE (database_id = $1 OR database_id IS NULL)
+        WHERE database_id = $1
           AND created_at > NOW() - INTERVAL '24 hours'
         GROUP BY date_trunc('hour', created_at)
         ORDER BY hour ASC`,
@@ -151,8 +169,17 @@ export class SlowQueryController {
         throw new AppError(500, "MISSING_PROJECT_CONTEXT", "Project context not found in identity")
       }
 
+      // Verify the database belongs to the requester's project before clearing
+      const dbCheck = await pool.query(
+        `SELECT id FROM databases WHERE id = $1 AND project_id = $2`,
+        [databaseId, projectId]
+      )
+      if (dbCheck.rows.length === 0) {
+        throw new AppError(403, "FORBIDDEN", "Database not found or access denied")
+      }
+
       const result = await pool.query(
-        `DELETE FROM slow_query_logs WHERE database_id = $1 OR database_id IS NULL`,
+        `DELETE FROM slow_query_logs WHERE database_id = $1`,
         [databaseId]
       )
 

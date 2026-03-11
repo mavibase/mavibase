@@ -46,7 +46,7 @@ export * from './utils/response';
 export * from './utils/sanitize';
 
 // Config
-export { pool, query } from './config/database';
+export { pool, query, runWithContext, requestContext, type RequestContext } from './config/database';
 export { getRedisClient, closeRedisClient } from './config/redis';
 
 // Middleware

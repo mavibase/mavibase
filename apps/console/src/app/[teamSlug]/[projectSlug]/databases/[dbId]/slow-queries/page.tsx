@@ -7,10 +7,19 @@ import {
   Trash2,
   ArrowUpDown,
   Zap,
+  Eye,
+  Copy,
+  Check,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import axiosInstance from "@/lib/axios-instance"
 import { useToast } from "@/components/custom-toast"
 import { DataTablePagination } from "@/components/data-table-pagination"
@@ -22,11 +31,11 @@ import { DatabaseHeader } from "@/components/database-header"
 interface SlowQueryLog {
   id: string
   database_id?: string
-  query_text: string
+  query_sql: string
   duration_ms: number
   operation: string
   threshold_ms: number
-  resource_name?: string
+  resource?: string
   suggestion?: string
   created_at: string
 }
@@ -94,17 +103,33 @@ export default function SlowQueriesPage() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
   const [stats, setStats] = useState<SlowQueryStats | null>(null)
   const [clearing, setClearing] = useState(false)
+  const [selectedLog, setSelectedLog] = useState<SlowQueryLog | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  const handleCopyQuery = async () => {
+    if (!selectedLog) return
+    try {
+      await navigator.clipboard.writeText(selectedLog.query_sql)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast({ message: "Failed to copy to clipboard", type: "error" })
+    }
+  }
 
   const fetchLogs = useCallback(async () => {
     setLoading(true)
     try {
-      const params: Record<string, string | number> = { limit, offset, sort_by: sortBy, sort_order: sortOrder }
-      if (operationFilter) params.operation = operationFilter
-      if (minDuration) params.min_duration = parseInt(minDuration, 10)
-      const res = await axiosInstance.db.get(`/v1/db/databases/${dbId}/slow-queries`, { params })
-      setLogs(res.data?.data || [])
+      const queryParams: Record<string, string | number> = { limit, offset, sort_by: sortBy, sort_order: sortOrder }
+      if (operationFilter) queryParams.operation = operationFilter
+      if (minDuration) queryParams.min_duration = parseInt(minDuration, 10)
+      const res = await axiosInstance.db.get(`/v1/db/databases/${dbId}/slow-queries`, { params: queryParams })
+      const data = res.data?.data
+      setLogs(Array.isArray(data) ? data : [])
       setTotal(res.data?.pagination?.total ?? 0)
     } catch {
+      setLogs([])
+      setTotal(0)
       toast({ message: "Failed to load slow query logs", type: "error" })
     } finally {
       setLoading(false)
@@ -143,23 +168,23 @@ export default function SlowQueriesPage() {
     <div className="p-4 sm:p-6 lg:p-8 pt-6">
     <div className="flex flex-col gap-4">
       {/* Stats summary */}
-      {stats && stats.summary && (
+      {stats?.summary && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="rounded-lg border border-border p-3">
             <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Total</p>
-            <p className="text-lg font-semibold text-foreground mt-0.5">{parseInt(stats.summary.total_slow_queries, 10).toLocaleString()}</p>
+            <p className="text-lg font-semibold text-foreground mt-0.5">{parseInt(stats.summary.total_slow_queries || "0", 10).toLocaleString()}</p>
           </div>
           <div className="rounded-lg border border-border p-3">
             <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Avg Duration</p>
-            <p className="text-lg font-semibold text-foreground mt-0.5">{stats.summary.avg_duration_ms}ms</p>
+            <p className="text-lg font-semibold text-foreground mt-0.5">{stats.summary.avg_duration_ms ?? 0}ms</p>
           </div>
           <div className="rounded-lg border border-border p-3">
             <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Critical ({'>'} 5s)</p>
-            <p className="text-lg font-semibold text-red-400 mt-0.5">{parseInt(stats.summary.critical_count, 10)}</p>
+            <p className="text-lg font-semibold text-red-400 mt-0.5">{parseInt(stats.summary.critical_count || "0", 10)}</p>
           </div>
           <div className="rounded-lg border border-border p-3">
             <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Warning (1-5s)</p>
-            <p className="text-lg font-semibold text-yellow-400 mt-0.5">{parseInt(stats.summary.warning_count, 10)}</p>
+            <p className="text-lg font-semibold text-yellow-400 mt-0.5">{parseInt(stats.summary.warning_count || "0", 10)}</p>
           </div>
         </div>
       )}
@@ -231,7 +256,7 @@ export default function SlowQueriesPage() {
                     <th className="border-b border-r border-border px-3 py-1.5 text-left text-xs font-medium text-muted-foreground font-mono min-w-[80px]">Operation</th>
                     <th className="border-b border-r border-border px-3 py-1.5 text-left text-xs font-medium text-muted-foreground font-mono min-w-[100px]">Resource</th>
                     <th className="border-b border-r border-border px-3 py-1.5 text-left text-xs font-medium text-muted-foreground font-mono min-w-[200px]">Suggestion</th>
-                    <th className="border-b border-border px-3 py-1.5 text-left min-w-[160px]">
+                    <th className="border-b border-r border-border px-3 py-1.5 text-left min-w-[160px]">
                       <button
                         className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors font-mono"
                         onClick={() => { if (sortBy === "created_at") setSortOrder(sortOrder === "asc" ? "desc" : "asc"); else { setSortBy("created_at"); setSortOrder("desc") } }}
@@ -240,13 +265,14 @@ export default function SlowQueriesPage() {
                         <ArrowUpDown className="size-2.5 opacity-40" />
                       </button>
                     </th>
+                    <th className="border-b border-border px-3 py-1.5 text-left text-xs font-medium text-muted-foreground font-mono w-[70px]">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="text-xs font-mono">
                   {logs.map((log) => (
                     <tr key={log.id} className="border-b border-border last:border-b-0 hover:bg-secondary/40 transition-colors">
                       <td className="border-r border-border px-3 py-2">
-                        <span className="text-foreground" title={log.query_text}>{truncateQuery(log.query_text)}</span>
+                        <span className="text-foreground" title={log.query_sql}>{truncateQuery(log.query_sql)}</span>
                       </td>
                       <td className="border-r border-border px-3 py-2">
                         <span className={cn("inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium tabular-nums", getDurationBg(log.duration_ms), getDurationColor(log.duration_ms))}>
@@ -257,13 +283,23 @@ export default function SlowQueriesPage() {
                         <span className="text-foreground">{log.operation}</span>
                       </td>
                       <td className="border-r border-border px-3 py-2">
-                        <span className="text-muted-foreground">{log.resource_name || "-"}</span>
+                        <span className="text-muted-foreground">{log.resource || "-"}</span>
                       </td>
                       <td className="border-r border-border px-3 py-2">
                         <span className="text-muted-foreground font-sans text-xs">{log.suggestion || "-"}</span>
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="border-r border-border px-3 py-2">
                         <span className="text-muted-foreground whitespace-nowrap">{formatTimestamp(log.created_at)}</span>
+                      </td>
+                      <td className="px-3 py-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={() => setSelectedLog(log)}
+                        >
+                          <Eye className="size-3.5 text-muted-foreground" />
+                        </Button>
                       </td>
                     </tr>
                   ))}
@@ -288,6 +324,88 @@ export default function SlowQueriesPage() {
       )}
     </div>
     </div>
+
+    {/* Query Detail Sheet */}
+    <Sheet open={!!selectedLog} onOpenChange={(open) => !open && setSelectedLog(null)}>
+      <SheetContent className="sm:max-w-xl">
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2">
+            <span className="text-foreground">Query Details</span>
+            {selectedLog && (
+              <span className={cn(
+                "inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium",
+                getDurationBg(selectedLog.duration_ms),
+                getDurationColor(selectedLog.duration_ms)
+              )}>
+                {selectedLog.duration_ms.toLocaleString()}ms
+              </span>
+            )}
+          </SheetTitle>
+        </SheetHeader>
+        
+        {selectedLog && (
+          <div className="mt-6 flex flex-col gap-4">
+            {/* Metadata */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Operation</p>
+                <p className="text-sm text-foreground mt-0.5 font-mono">{selectedLog.operation}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Threshold</p>
+                <p className="text-sm text-foreground mt-0.5 font-mono">{selectedLog.threshold_ms}ms</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Resource</p>
+                <p className="text-sm text-foreground mt-0.5 font-mono">{selectedLog.resource || "-"}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Timestamp</p>
+                <p className="text-sm text-foreground mt-0.5">{formatTimestamp(selectedLog.created_at)}</p>
+              </div>
+            </div>
+
+            {/* Suggestion */}
+            {selectedLog.suggestion && (
+              <div>
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Suggestion</p>
+                <p className="text-sm text-foreground mt-1">{selectedLog.suggestion}</p>
+              </div>
+            )}
+
+            {/* Full Query */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Full Query</p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={handleCopyQuery}
+                >
+                  {copied ? (
+                    <>
+                      <Check className="size-3 mr-1 text-green-500" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="size-3 mr-1" />
+                      Copy
+                    </>
+                  )}
+                </Button>
+              </div>
+              <div className="rounded-lg border border-border bg-secondary/50 p-3 overflow-x-auto">
+                <pre className="text-xs font-mono text-foreground whitespace-pre-wrap break-all">
+                  {selectedLog.query_sql}
+                </pre>
+              </div>
+            </div>
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
     </>
   )
 }

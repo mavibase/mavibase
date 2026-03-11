@@ -1,6 +1,7 @@
 import { type Express, Router } from "express"
 import { identityMiddleware } from "@mavibase/platform"
 import { enrichIdentityMiddleware } from "../middleware/enrich-identity"
+import { slowQueryContextMiddleware } from "../middleware/slow-query-context"
 import { egressTracker } from "../middleware/egress-tracker"
 import { databaseRoutes } from "./v1/databases"
 import { collectionRoutes } from "./v1/collections"
@@ -28,6 +29,9 @@ export const setupRoutes = (app: Express) => {
 
   // Enrich identity with DB-side project roles and permissions
   apiRouter.use(enrichIdentityMiddleware)
+
+  // Set up slow query tracking context (only tracks external API key requests)
+  apiRouter.use(slowQueryContextMiddleware)
 
   // Track egress for API-key authenticated requests only
   apiRouter.use(egressTracker())
