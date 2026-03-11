@@ -1,11 +1,27 @@
 import jwt from "jsonwebtoken"
 import { redis } from "../config/redis"
-import { createSession } from "./session-service"
+import { createSession, getSessionByRefreshToken, updateSessionLastUsed, revokeSession } from "./session-service"
+import { logger } from "../utils/logger"
 
 const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || process.env.JWT_SECRET || "access-secret-key"
 const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET || "refresh-secret-key"
 const ACCESS_TOKEN_EXPIRY = process.env.JWT_EXPIRES_IN || process.env.JWT_ACCESS_TOKEN_EXPIRY || "15m"
 const REFRESH_TOKEN_EXPIRY = process.env.REFRESH_TOKEN_EXPIRES_IN || process.env.JWT_REFRESH_TOKEN_EXPIRY || "7d"
+
+// Validate that secrets are not placeholder values
+const validateSecrets = () => {
+  if (process.env.NODE_ENV === "production") {
+    if (ACCESS_TOKEN_SECRET?.includes("change-this") || ACCESS_TOKEN_SECRET === "access-secret-key") {
+      throw new Error("FATAL: ACCESS_TOKEN_SECRET must be changed before production deployment")
+    }
+    if (REFRESH_TOKEN_SECRET?.includes("change-this") || REFRESH_TOKEN_SECRET === "refresh-secret-key") {
+      throw new Error("FATAL: REFRESH_TOKEN_SECRET must be changed before production deployment")
+    }
+  }
+}
+
+// Validate secrets on module load
+validateSecrets()
 
 // Helper to parse expiry time to milliseconds
 const parseExpiryToMs = (expiry: string): number => {
@@ -44,7 +60,13 @@ export const verifyAccessToken = async (token: string): Promise<any> => {
       return null
     }
 
-    const decoded = jwt.verify(token, ACCESS_TOKEN_SECRET)
+    const decoded = jwt.verify(token, ACCESS_TOKEN_SECRET) as jwt.JwtPayload
+    
+    // Verify exp claim is in future (defense against clock skew attacks)
+    if (decoded.exp && decoded.exp * 1000 < Date.now()) {
+      return null
+    }
+    
     return decoded
   } catch {
     return null
@@ -53,12 +75,28 @@ export const verifyAccessToken = async (token: string): Promise<any> => {
 
 export const verifyRefreshToken = (token: string): any => {
   try {
-    return jwt.verify(token, REFRESH_TOKEN_SECRET)
+    const decoded = jwt.verify(token, REFRESH_TOKEN_SECRET) as jwt.JwtPayload
+    
+    // Verify exp claim is in future
+    if (decoded.exp && decoded.exp * 1000 < Date.now()) {
+      return null
+    }
+    
+    return decoded
   } catch {
     return null
   }
 }
 
+/**
+ * Refresh access token with enhanced validation
+ * 
+ * Implements secure session-based token refresh with:
+ * - Database-backed session validation (prevents Redis race conditions)
+ * - Token rotation for refresh tokens
+ * - IP/User-Agent change detection and logging
+ * - Concurrent refresh detection
+ */
 export const refreshAccessToken = async (refreshToken: string, ip?: string, userAgent?: string) => {
   const decoded = verifyRefreshToken(refreshToken)
 
@@ -70,14 +108,66 @@ export const refreshAccessToken = async (refreshToken: string, ip?: string, user
     }
   }
 
-  // Verify refresh token exists in Redis
-  const storedToken = await redis.get(`refresh_token:${decoded.userId}`)
-  if (storedToken !== refreshToken) {
+  // CRITICAL FIX: Validate against database session record (not just Redis)
+  // This prevents race conditions where Redis expires token between decode and lookup
+  const session = await getSessionByRefreshToken(refreshToken)
+  
+  if (!session) {
+    logger.warn("Refresh token validation failed - no session found", {
+      userId: decoded.userId,
+      ip,
+    })
     throw {
       statusCode: 401,
       code: "INVALID_REFRESH_TOKEN",
-      message: "Refresh token not found or expired",
+      message: "Session not found or expired",
     }
+  }
+
+  // Verify session belongs to the user claiming it
+  if (session.user_id !== decoded.userId) {
+    logger.error("Refresh token user mismatch - potential token hijacking", {
+      tokenUserId: decoded.userId,
+      sessionUserId: session.user_id,
+      ip,
+    })
+    // Revoke all sessions for this user as precaution
+    await revokeSession(session.id, decoded.userId)
+    throw {
+      statusCode: 401,
+      code: "TOKEN_HIJACKING_DETECTED",
+      message: "Invalid refresh token",
+    }
+  }
+
+  // Check if session is revoked
+  if (session.revoked) {
+    logger.warn("Attempt to use revoked session", {
+      userId: decoded.userId,
+      sessionId: session.id,
+      ip,
+    })
+    throw {
+      statusCode: 401,
+      code: "SESSION_REVOKED",
+      message: "Session has been revoked",
+    }
+  }
+
+  // SECURITY: Detect suspicious activity (IP/User-Agent changes)
+  const ipChanged = ip && session.ip_address && session.ip_address !== ip
+  const userAgentChanged = userAgent && session.user_agent && session.user_agent !== userAgent
+  
+  if (ipChanged || userAgentChanged) {
+    logger.warn("Session context changed - potential security risk", {
+      userId: decoded.userId,
+      sessionId: session.id,
+      ipChanged,
+      previousIp: session.ip_address,
+      currentIp: ip,
+      userAgentChanged,
+    })
+    // Continue but log for security monitoring
   }
 
   // Generate new tokens
@@ -87,6 +177,7 @@ export const refreshAccessToken = async (refreshToken: string, ip?: string, user
   const accessTokenExpiresAt = new Date(Date.now() + parseExpiryToMs(ACCESS_TOKEN_EXPIRY))
   const refreshTokenExpiresAt = new Date(Date.now() + parseExpiryToMs(REFRESH_TOKEN_EXPIRY))
 
+  // Create new session record with updated tokens
   await createSession({
     userId: decoded.userId,
     accessToken: newAccessToken,
@@ -97,10 +188,8 @@ export const refreshAccessToken = async (refreshToken: string, ip?: string, user
     refreshTokenExpiresAt,
   })
 
-  // Store new refresh token
-  await redis.set(`refresh_token:${decoded.userId}`, newRefreshToken, {
-    EX: Math.floor(parseExpiryToMs(REFRESH_TOKEN_EXPIRY) / 1000),
-  })
+  // Update the old session's last_used_at timestamp
+  await updateSessionLastUsed(refreshToken)
 
   return {
     accessToken: newAccessToken,

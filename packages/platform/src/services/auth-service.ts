@@ -125,8 +125,6 @@ export const registerUser = async (data: {
       refreshTokenExpiresAt,
     })
 
-    await redis.set(`refresh_token:${userId}`, refreshToken, { EX: 7 * 24 * 60 * 60 })
-
     return {
       user: {
         ...user,
@@ -207,8 +205,6 @@ export const loginUser = async (data: {
     refreshTokenExpiresAt,
   })
 
-  await redis.set(`refresh_token:${user.id}`, refreshToken, { EX: 7 * 24 * 60 * 60 })
-
   delete user.password_hash
 
   return {
@@ -221,7 +217,6 @@ export const loginUser = async (data: {
 
 export const logoutUser = async (refreshToken: string, userId: string) => {
   await revokeSessionByRefreshToken(refreshToken)
-  await redis.del(`refresh_token:${userId}`)
 }
 
 export const requestPasswordReset = async (email: string) => {
@@ -277,17 +272,6 @@ export const verifyEmail = async (token: string) => {
     "SELECT user_id, expires_at, verified_at FROM email_verifications WHERE token_hash = $1",
     [tokenHash],
   )
-
-
-  if (checkToken.rows.length > 0) {
-    console.log("Token details:", {
-      userId: checkToken.rows[0].user_id,
-      expiresAt: checkToken.rows[0].expires_at,
-      verifiedAt: checkToken.rows[0].verified_at,
-      isExpired: new Date(checkToken.rows[0].expires_at) < new Date(),
-      alreadyVerified: checkToken.rows[0].verified_at !== null,
-    })
-  }
 
   const result = await pool.query(
     "UPDATE email_verifications SET verified_at = NOW() WHERE token_hash = $1 AND expires_at > NOW() AND verified_at IS NULL RETURNING user_id",
