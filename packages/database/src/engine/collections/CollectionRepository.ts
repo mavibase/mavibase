@@ -3,12 +3,15 @@ import type { Collection, CollectionSchema, SchemaDefinition } from "../../types
 import { AppError } from "@mavibase/core"
 import { generateId } from "@mavibase/database/utils/id-generator"
 
+// Default isolation level for collection operations (READ COMMITTED prevents dirty reads)
+const DEFAULT_ISOLATION_LEVEL = "READ COMMITTED"
+
 export class CollectionRepository {
   async create(collection: Collection, schema?: SchemaDefinition, projectId?: string): Promise<Collection> {
     const client = await pool.connect()
 
     try {
-      await client.query("BEGIN")
+      await client.query(`BEGIN ISOLATION LEVEL ${DEFAULT_ISOLATION_LEVEL}`)
 
       // 1️⃣ Check key uniqueness inside the database
       const existingKey = await client.query(
@@ -193,7 +196,7 @@ async update(
   const client = await pool.connect()
 
   try {
-    await client.query("BEGIN")
+    await client.query(`BEGIN ISOLATION LEVEL ${DEFAULT_ISOLATION_LEVEL}`)
 
     const existing = await this.findById(id, projectId)
     if (!existing) {
