@@ -13,7 +13,8 @@ export { IndexRepository } from './engine/indexes/IndexRepository';
 export { VersionManager } from './engine/versioning/VersionManager';
 export { RelationshipManager } from './engine/relationships/RelationshipManager';
 // export { RelationshipResolver } from './engine/relationships/RelationshipResolver';
-// export { TransactionManager } from './transaction/TransactionManager';
+export { TransactionManager, withTransaction, beginTransaction, commitTransaction, rollbackTransaction } from './transaction/TransactionManager';
+export type { IsolationLevel, TransactionOptions } from './transaction/TransactionManager';
 // export { TransactionLogger } from './transaction/TransactionLogger';
 
 // Query
