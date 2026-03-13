@@ -376,8 +376,6 @@ Bize katilin ve Mavibase hakkinda guncel kalin:
   &nbsp;
   <a href="https://t.me/Mavibase"><img src="https://img.shields.io/badge/Telegram-Topluluk-26A5E4?logo=telegram&logoColor=white" alt="Telegram" /></a>
   &nbsp;
-  <a href="https://twitter.com/mavibase"><img src="https://img.shields.io/badge/Twitter-Takip%20Et-1DA1F2?logo=twitter&logoColor=white" alt="Twitter" /></a>
-  &nbsp;
   <a href="https://www.linkedin.com/company/mavibase"><img src="https://img.shields.io/badge/LinkedIn-Baglan-0A66C2?logo=linkedin&logoColor=white" alt="LinkedIn" /></a>
 </p>
 

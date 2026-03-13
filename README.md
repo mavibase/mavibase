@@ -377,8 +377,6 @@ Join us and stay updated on Mavibase:
   &nbsp;
   <a href="https://t.me/Mavibase"><img src="https://img.shields.io/badge/Telegram-Community-26A5E4?logo=telegram&logoColor=white" alt="Telegram" /></a>
   &nbsp;
-  <a href="https://twitter.com/mavibase"><img src="https://img.shields.io/badge/Twitter-Follow-1DA1F2?logo=twitter&logoColor=white" alt="Twitter" /></a>
-  &nbsp;
   <a href="https://www.linkedin.com/company/mavibase"><img src="https://img.shields.io/badge/LinkedIn-Connect-0A66C2?logo=linkedin&logoColor=white" alt="LinkedIn" /></a>
 </p>
 
