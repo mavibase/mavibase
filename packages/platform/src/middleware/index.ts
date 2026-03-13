@@ -10,6 +10,7 @@ import { attachClientIp } from "./ip-middleware"
 import { httpsEnforcement, securityHeaders, contentSecurityPolicy } from "./security-headers"
 import { contentTypeValidator } from "./content-type-validator"
 import { idempotencyMiddleware } from "./idempotency"
+import { bandwidthLimiter } from "./bandwidth-limiter"
 
 /**
  * Unified middleware setup for both platform and database services
@@ -58,8 +59,11 @@ export const setupMiddleware = (app: Express) => {
   // Cookie parser for session-based authentication
   app.use(cookieParser())
 
-  // Rate limiting
+  // Rate limiting (request count based)
   app.use(rateLimiter)
+
+  // Bandwidth limiting (bytes based - prevents large payload attacks)
+  app.use(bandwidthLimiter)
 
   // Idempotency middleware for request deduplication
   // Must be after rate limiting to prevent caching rate-limited responses
