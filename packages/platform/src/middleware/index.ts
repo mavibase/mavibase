@@ -38,7 +38,7 @@ export const setupMiddleware = (app: Express) => {
       origin: allowedOrigins,
       credentials: true,
       methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-      allowedHeaders: ["Content-Type", "Authorization", "X-Project-Id", "X-Request-Id", "X-API-Key"],
+      allowedHeaders: ["Content-Type", "Authorization", "X-Project-Id", "X-Request-Id", "X-API-Key", "X-Team-Id", "Idempotency-Key"],
       exposedHeaders: ["X-Request-Id", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
       maxAge: corsMaxAge, // Preflight cache duration in seconds (default: 24 hours)
     }),
