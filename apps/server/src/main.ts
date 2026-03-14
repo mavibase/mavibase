@@ -18,7 +18,10 @@ const PORT = process.env.PORT || 3000;
 
 app.set('trust proxy', true);
 
-// Root health check - gives overview of all services
+// Setup unified middleware for both services FIRST - applies to all routes
+setupMiddleware(app);  // Unified middleware (CORS, security, body parsing)
+
+// Root health check - gives overview of all services (after middleware so CORS applies)
 app.get('/health', async (req, res) => {
   const startTime = Date.now();
   
@@ -91,9 +94,6 @@ app.get('/health', async (req, res) => {
     },
   });
 });
-
-// Setup unified middleware for both services
-setupMiddleware(app);  // Unified middleware (CORS, security, body parsing)
 
 // Setup routes for both services
 setupDatabaseRoutes(app); // Database service routes
