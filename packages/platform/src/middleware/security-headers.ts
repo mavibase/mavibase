@@ -67,6 +67,12 @@ export const httpsEnforcement = (req: Request, res: Response, next: NextFunction
     return next()
   }
   
+  // Skip for localhost/development testing (production mode but local environment)
+  const host = req.hostname || req.headers.host || ""
+  if (host.includes("localhost") || host.includes("127.0.0.1")) {
+    return next()
+  }
+  
   // Skip for health check endpoints (allow monitoring tools)
   if (req.path === "/health" || req.path.includes("/health") || req.path.includes("/live") || req.path.includes("/ready")) {
     return next()
