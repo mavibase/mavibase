@@ -3,6 +3,22 @@ import * as authService from "@mavibase/platform/services/auth-service"
 import * as tokenService from "@mavibase/platform/services/token-service"
 import crypto from "crypto"
 
+// Helper to determine if we're actually on HTTPS (not just production mode)
+const isSecureContext = (req: Request): boolean => {
+  const isProduction = process.env.NODE_ENV === "production"
+  const host = req.hostname || req.headers.host || ""
+  const isLocalhost = host.includes("localhost") || host.includes("127.0.0.1")
+  // Only set secure cookies if production AND not localhost
+  return isProduction && !isLocalhost
+}
+
+const getCookieOptions = (req: Request, maxAge: number) => ({
+  httpOnly: true,
+  secure: isSecureContext(req),
+  sameSite: isSecureContext(req) ? "none" as const : "lax" as const,
+  maxAge,
+})
+
 export const register = async (req: Request, res: Response) => {
   try {
     let { email, password, username, metadata, firstname, lastname } = req.body
@@ -34,19 +50,8 @@ export const register = async (req: Request, res: Response) => {
       userAgent: req.get("user-agent"),
     })
 
-    res.cookie("accessToken", result.accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: 15 * 60 * 1000, // 15 minutes
-    })
-
-    res.cookie("refreshToken", result.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    })
+    res.cookie("accessToken", result.accessToken, getCookieOptions(req, 15 * 60 * 1000)) // 15 minutes
+    res.cookie("refreshToken", result.refreshToken, getCookieOptions(req, 7 * 24 * 60 * 60 * 1000)) // 7 days
 
     res.status(201).json({
       success: true,
@@ -87,19 +92,8 @@ export const login = async (req: Request, res: Response) => {
       userAgent: req.get("user-agent"),
     })
 
-    res.cookie("accessToken", result.accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: 15 * 60 * 1000, // 15 minutes
-    })
-
-    res.cookie("refreshToken", result.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    })
+    res.cookie("accessToken", result.accessToken, getCookieOptions(req, 15 * 60 * 1000)) // 15 minutes
+    res.cookie("refreshToken", result.refreshToken, getCookieOptions(req, 7 * 24 * 60 * 60 * 1000)) // 7 days
 
     res.json({
       success: true,
@@ -160,19 +154,8 @@ export const refreshToken = async (req: Request, res: Response) => {
 
     const result = await tokenService.refreshAccessToken(refreshToken, req.clientIp, req.get("user-agent"))
 
-    res.cookie("accessToken", result.accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: 15 * 60 * 1000, // 15 minutes
-    })
-
-    res.cookie("refreshToken", result.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    })
+    res.cookie("accessToken", result.accessToken, getCookieOptions(req, 15 * 60 * 1000)) // 15 minutes
+    res.cookie("refreshToken", result.refreshToken, getCookieOptions(req, 7 * 24 * 60 * 60 * 1000)) // 7 days
 
     res.json({
       success: true,
@@ -350,19 +333,8 @@ export const verifyToken = async (req: Request, res: Response) => {
       const result = await tokenService.refreshAccessToken(refreshToken, req.clientIp, req.get("user-agent"))
 
       // Set new cookies
-      res.cookie("accessToken", result.accessToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-        maxAge: 15 * 60 * 1000, // 15 minutes
-      })
-
-      res.cookie("refreshToken", result.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      })
+      res.cookie("accessToken", result.accessToken, getCookieOptions(req, 15 * 60 * 1000)) // 15 minutes
+      res.cookie("refreshToken", result.refreshToken, getCookieOptions(req, 7 * 24 * 60 * 60 * 1000)) // 7 days
 
       // Get user data with the refreshed token
       const decoded = await tokenService.verifyAccessToken(result.accessToken)
