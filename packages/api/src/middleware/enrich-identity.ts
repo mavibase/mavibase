@@ -1,5 +1,54 @@
 import type { Request, Response, NextFunction } from "express"
 import { query } from "@mavibase/database/config/database"
+import { getRedisClient } from "@mavibase/database/config/redis"
+import { logger } from "@mavibase/database/utils/logger"
+
+// Cache TTL for role data (5 minutes by default)
+const ROLE_CACHE_TTL_SECONDS = Number.parseInt(process.env.ROLE_CACHE_TTL_SECONDS || "300")
+const CACHE_PREFIX = "identity:roles:"
+
+// Get Redis client (may be null if Redis is unavailable)
+let redisClient: ReturnType<typeof getRedisClient> | null = null
+try {
+  redisClient = getRedisClient()
+} catch (error) {
+  logger.warn("[enrich-identity] Redis not available, role caching disabled")
+}
+
+// Generate cache key for user+project role lookup
+const getCacheKey = (userId: string, projectId: string): string => {
+  return `${CACHE_PREFIX}${userId}:${projectId}`
+}
+
+// Try to get cached roles from Redis
+const getCachedRoles = async (userId: string, projectId: string): Promise<{ roles: string[]; permissions: string[] } | null> => {
+  if (!redisClient) return null
+  
+  try {
+    const cached = await redisClient.get(getCacheKey(userId, projectId))
+    if (cached) {
+      return JSON.parse(cached)
+    }
+  } catch (error) {
+    logger.warn("[enrich-identity] Redis cache read failed", { error })
+  }
+  return null
+}
+
+// Cache roles in Redis
+const setCachedRoles = async (userId: string, projectId: string, roles: string[], permissions: string[]): Promise<void> => {
+  if (!redisClient) return
+  
+  try {
+    await redisClient.setex(
+      getCacheKey(userId, projectId),
+      ROLE_CACHE_TTL_SECONDS,
+      JSON.stringify({ roles, permissions })
+    )
+  } catch (error) {
+    logger.warn("[enrich-identity] Redis cache write failed", { error })
+  }
+}
 
 /**
  * Middleware that enriches the identity context with project roles
@@ -11,6 +60,8 @@ import { query } from "@mavibase/database/config/database"
  * bridges the gap by loading the DB-side roles and merging them into
  * the identity context so that AuthorizationPolicy and controller-level
  * hasRolePermission checks work correctly.
+ * 
+ * Roles are cached in Redis to reduce database load (configurable via ROLE_CACHE_TTL_SECONDS).
  */
 export const enrichIdentityMiddleware = async (
   req: Request,
@@ -20,6 +71,21 @@ export const enrichIdentityMiddleware = async (
   try {
     const identity = req.identity
     if (!identity || identity.type !== "user" || !identity.user_id || !identity.project_id) {
+      return next()
+    }
+
+    // Try to get roles from cache first
+    const cached = await getCachedRoles(identity.user_id, identity.project_id)
+    if (cached) {
+      // Use cached roles
+      const existingProjectRoles = identity.project_roles || []
+      const existingPermissions = identity.permissions || []
+      const existingRoles = identity.roles || []
+
+      identity.project_roles = Array.from(new Set([...existingProjectRoles, ...cached.roles])) || undefined
+      identity.permissions = Array.from(new Set([...existingPermissions, ...cached.permissions])) || undefined
+      identity.roles = Array.from(new Set([...existingRoles, ...cached.roles])) || undefined
+
       return next()
     }
 
@@ -37,17 +103,22 @@ export const enrichIdentityMiddleware = async (
       [identity.user_id, identity.project_id],
     )
 
-    if (rolesResult.rows.length === 0) {
-      // No DB-side roles — keep identity as-is
-      return next()
-    }
-
     // Merge DB-side roles into identity
     const dbProjectRoles: string[] = rolesResult.rows.map((r: any) => r.role_name)
     const dbPermissions = new Set<string>()
     for (const row of rolesResult.rows) {
       const perms = Array.isArray(row.permissions) ? row.permissions : []
       for (const p of perms) dbPermissions.add(p)
+    }
+
+    const dbPermissionsArray = Array.from(dbPermissions)
+
+    // Cache the roles for future requests (even if empty)
+    await setCachedRoles(identity.user_id, identity.project_id, dbProjectRoles, dbPermissionsArray)
+
+    if (rolesResult.rows.length === 0) {
+      // No DB-side roles — keep identity as-is
+      return next()
     }
 
     // Merge with existing platform-resolved values (avoid duplicates)
@@ -59,7 +130,7 @@ export const enrichIdentityMiddleware = async (
       new Set([...existingProjectRoles, ...dbProjectRoles]),
     )
     const mergedPermissions = Array.from(
-      new Set([...existingPermissions, ...dbPermissions]),
+      new Set([...existingPermissions, ...dbPermissionsArray]),
     )
     const mergedRoles = Array.from(
       new Set([...existingRoles, ...dbProjectRoles]),
