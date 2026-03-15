@@ -8,29 +8,35 @@ const hashToken = (token: string): string => {
   return crypto.createHash("sha256").update(token).digest("hex")
 }
 
-const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || process.env.JWT_SECRET || "access-secret-key"
-const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET || "refresh-secret-key"
+const isProduction = process.env.NODE_ENV === "production"
+
+// In development, allow fallback secrets for convenience. In production, require proper secrets.
+const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || process.env.JWT_SECRET || (isProduction ? undefined : "dev-access-secret")
+const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET || (isProduction ? undefined : "dev-refresh-secret")
 const ACCESS_TOKEN_EXPIRY = process.env.JWT_EXPIRES_IN || process.env.JWT_ACCESS_TOKEN_EXPIRY || "15m"
 const REFRESH_TOKEN_EXPIRY = process.env.REFRESH_TOKEN_EXPIRES_IN || process.env.JWT_REFRESH_TOKEN_EXPIRY || "7d"
 
-// Validate that secrets are not placeholder values
-// NOTE: This logs warnings instead of throwing to prevent CORS failures
-// The server startup script should validate required env vars before starting
+// Validate that secrets are configured - fails fast in production if missing
 const validateSecrets = () => {
-  if (process.env.NODE_ENV === "production") {
-    const isAccessSecretWeak = ACCESS_TOKEN_SECRET?.includes("change-this") || ACCESS_TOKEN_SECRET === "access-secret-key"
-    const isRefreshSecretWeak = REFRESH_TOKEN_SECRET?.includes("change-this") || REFRESH_TOKEN_SECRET === "refresh-secret-key"
-    
-    if (isAccessSecretWeak) {
-      logger.error("SECURITY WARNING: ACCESS_TOKEN_SECRET must be changed for production deployment")
+  if (isProduction) {
+    if (!process.env.ACCESS_TOKEN_SECRET && !process.env.JWT_SECRET) {
+      const error = "FATAL: ACCESS_TOKEN_SECRET or JWT_SECRET environment variable is required in production"
+      logger.error(error)
+      throw new Error(error)
     }
-    if (isRefreshSecretWeak) {
-      logger.error("SECURITY WARNING: REFRESH_TOKEN_SECRET must be changed for production deployment")
+    if (!process.env.REFRESH_TOKEN_SECRET && !process.env.JWT_SECRET) {
+      const error = "FATAL: REFRESH_TOKEN_SECRET or JWT_SECRET environment variable is required in production"
+      logger.error(error)
+      throw new Error(error)
+    }
+  } else {
+    if (!process.env.ACCESS_TOKEN_SECRET && !process.env.JWT_SECRET) {
+      logger.warn("Using default JWT secrets - do not use in production")
     }
   }
 }
 
-// Validate secrets on module load (logs warnings, doesn't throw)
+// Validate secrets on module load
 validateSecrets()
 
 // Helper to parse expiry time to milliseconds
