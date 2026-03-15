@@ -22,6 +22,42 @@ const AVATAR_URLS = [
 
 const getRandomAvatarUrl = () => AVATAR_URLS[Math.floor(Math.random() * AVATAR_URLS.length)]
 
+// Account lockout configuration
+const MAX_LOGIN_ATTEMPTS = Number.parseInt(process.env.MAX_LOGIN_ATTEMPTS || "5")
+const LOCKOUT_DURATION_MINUTES = Number.parseInt(process.env.ACCOUNT_LOCKOUT_DURATION_MINUTES || "15")
+
+// Helper function to check if account is locked
+const isAccountLocked = async (email: string): Promise<{ locked: boolean; remainingMinutes?: number }> => {
+  const lockoutWindow = new Date(Date.now() - LOCKOUT_DURATION_MINUTES * 60 * 1000)
+  
+  const result = await pool.query(
+    `SELECT COUNT(*) as failed_attempts, MAX(created_at) as last_attempt
+     FROM login_attempts 
+     WHERE email = $1 AND success = false AND created_at > $2`,
+    [email, lockoutWindow]
+  )
+  
+  const failedAttempts = parseInt(result.rows[0].failed_attempts)
+  
+  if (failedAttempts >= MAX_LOGIN_ATTEMPTS) {
+    const lastAttempt = new Date(result.rows[0].last_attempt)
+    const unlockTime = new Date(lastAttempt.getTime() + LOCKOUT_DURATION_MINUTES * 60 * 1000)
+    const remainingMinutes = Math.ceil((unlockTime.getTime() - Date.now()) / 60000)
+    return { locked: true, remainingMinutes }
+  }
+  
+  return { locked: false }
+}
+
+// Helper function to record login attempt
+const recordLoginAttempt = async (email: string, ip: string | undefined, userAgent: string | undefined, success: boolean) => {
+  await pool.query(
+    `INSERT INTO login_attempts (email, ip_address, user_agent, success)
+     VALUES ($1, $2::inet, $3, $4)`,
+    [email, ip || '0.0.0.0', userAgent || null, success]
+  )
+}
+
 export const getUserById = async (userId: string) => {
   const result = await pool.query(
     `SELECT id, email, name, email_verified, status, default_team_id, selected_team_id, selected_project_id, avatar_url, created_at, last_login_at 
@@ -156,12 +192,28 @@ export const loginUser = async (data: {
 }) => {
   const { email, username, password, ip, userAgent } = data
 
+  // Check if account is locked before proceeding
+  if (email) {
+    const lockStatus = await isAccountLocked(email)
+    if (lockStatus.locked) {
+      throw {
+        statusCode: 429,
+        code: "ACCOUNT_LOCKED",
+        message: `Account is temporarily locked due to too many failed login attempts. Please try again in ${lockStatus.remainingMinutes} minute(s).`,
+      }
+    }
+  }
+
   const query = "SELECT * FROM platform_users WHERE email = $1"
   const value = email
 
   const result = await pool.query(query, [value])
 
   if (result.rows.length === 0) {
+    // Record failed attempt for non-existent user (to prevent user enumeration timing attacks)
+    if (email) {
+      await recordLoginAttempt(email, ip, userAgent, false)
+    }
     throw {
       statusCode: 401,
       code: "INVALID_CREDENTIALS",
@@ -182,11 +234,20 @@ export const loginUser = async (data: {
   const isValid = await verifyPassword(password, user.password_hash)
 
   if (!isValid) {
+    // Record failed login attempt
+    if (email) {
+      await recordLoginAttempt(email, ip, userAgent, false)
+    }
     throw {
       statusCode: 401,
       code: "INVALID_CREDENTIALS",
       message: "Invalid email or password",
     }
+  }
+
+  // Record successful login attempt (resets the lockout window)
+  if (email) {
+    await recordLoginAttempt(email, ip, userAgent, true)
   }
 
   // Update last login
