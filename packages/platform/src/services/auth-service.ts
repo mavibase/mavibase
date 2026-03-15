@@ -1,5 +1,5 @@
 import { pool } from "../config/database"
-import { hashPassword, verifyPassword } from "./password-service"
+import { hashPassword, verifyPassword, validatePasswordStrength } from "./password-service"
 import { generateAccessToken, generateRefreshToken } from "./token-service"
 import { createSession, revokeSessionByRefreshToken } from "./session-service"
 import { v4 as uuidv4 } from "uuid"
@@ -52,6 +52,15 @@ export const registerUser = async (data: {
   lastname?: string
 }) => {
   const { email, password, username, metadata, ip, userAgent, firstname, lastname } = data
+
+  // Validate password strength
+  if (!validatePasswordStrength(password)) {
+    throw {
+      statusCode: 400,
+      code: "WEAK_PASSWORD",
+      message: "Password must be at least 8 characters long and contain uppercase, lowercase, and numeric characters",
+    }
+  }
 
   // Check if user already exists
   const existingUser = await pool.query("SELECT id FROM platform_users WHERE email = $1", [email])
@@ -233,6 +242,15 @@ export const requestPasswordReset = async (email: string) => {
 }
 
 export const resetPassword = async (token: string, newPassword: string) => {
+  // Validate password strength
+  if (!validatePasswordStrength(newPassword)) {
+    throw {
+      statusCode: 400,
+      code: "WEAK_PASSWORD",
+      message: "Password must be at least 8 characters long and contain uppercase, lowercase, and numeric characters",
+    }
+  }
+
   const tokenHash = crypto.createHash("sha256").update(token).digest("hex")
   
   const result = await pool.query(
