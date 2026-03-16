@@ -10,6 +10,7 @@ import { InputValidator } from "@mavibase/api/middleware/input-validator"
 import { generateId, generateKey } from "@mavibase/database/utils/id-generator"
 import { RelationshipManager } from "@mavibase/database/engine/relationships/RelationshipManager"
 import { pool } from "@mavibase/database/config/database"
+import { AuditLogService } from "@mavibase/platform/services/audit-log-service"
 
 export class CollectionController {
   private repository: CollectionRepository
@@ -102,6 +103,25 @@ export class CollectionController {
         success: true,
         message: `Collection "${name}" created successfully`,
         data: collection,
+      })
+
+      const identity: any = req.identity
+      const actorType = identity?.type === "user" ? "USER" : "SYSTEM"
+      const actorId = identity?.user_id || identity?.api_key_id || identity?.apiKeyId || null
+      void AuditLogService.log({
+        scope: "collection",
+        actorId,
+        targetId: collection.id,
+        action: "collection.create",
+        metadata: {
+          actorType,
+          message: `${actorType} ${actorId || "unknown"} created collection "${name}"`,
+          projectId,
+          teamId: identity?.team_id,
+          databaseId,
+          collectionId: collection.id,
+          collectionName: name,
+        },
       })
     } catch (error) {
       next(error)
@@ -233,6 +253,25 @@ export class CollectionController {
         message: "Collection updated successfully",
         data: updated,
       })
+
+      const identity: any = req.identity
+      const actorType = identity?.type === "user" ? "USER" : "SYSTEM"
+      const actorId = identity?.user_id || identity?.api_key_id || identity?.apiKeyId || null
+      void AuditLogService.log({
+        scope: "collection",
+        actorId,
+        targetId: collectionId,
+        action: "collection.update",
+        metadata: {
+          actorType,
+          message: `${actorType} ${actorId || "unknown"} updated collection ${collectionId}`,
+          projectId,
+          teamId: identity?.team_id,
+          databaseId: existing.database_id,
+          collectionId,
+          changes: { name, description, permission_rules, visibility },
+        },
+      })
     } catch (error) {
       next(error)
     }
@@ -288,6 +327,27 @@ export class CollectionController {
         data: {
           deletedId: collectionId,
           deletedName: collection.name,
+        },
+      })
+
+      const identity: any = req.identity
+      const actorType = identity?.type === "user" ? "USER" : "SYSTEM"
+      const actorId = identity?.user_id || identity?.api_key_id || identity?.apiKeyId || null
+      void AuditLogService.log({
+        scope: "collection",
+        actorId,
+        targetId: collectionId,
+        action: "collection.delete",
+        metadata: {
+          actorType,
+          message: `${actorType} ${actorId || "unknown"} deleted collection "${collection.name}"`,
+          projectId,
+          teamId: identity?.team_id,
+          databaseId: collection.database_id,
+          collectionId,
+          collectionName: collection.name,
+          documentCount,
+          storageBytes,
         },
       })
     } catch (error) {

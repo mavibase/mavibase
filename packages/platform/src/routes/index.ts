@@ -9,6 +9,7 @@ import healthRoutes from "./v1/health"
 import internalRoutes from "./v1/internal"
 import projectRoleRoutes from "./v1/project-roles"
 import twoFactorRoutes from "./v1/two-factor"
+import auditLogRoutes from "./v1/audit-logs"
 import { HealthController } from "../controllers/v1/health/HealthController"
 
 const healthController = new HealthController()
@@ -45,6 +46,9 @@ export const setupRoutes = (app: Express) => {
 
   // API key management
   apiRouter.use("/api-keys", apiKeyRoutes)
+
+  // Audit logs
+  apiRouter.use("/audit-logs", auditLogRoutes)
 
   // Mount API router
   app.use("/api/v1/platform", apiRouter)

@@ -1,6 +1,7 @@
 import type { Request, Response } from "express"
 import * as userService from "@mavibase/platform/services/user-service"
 import { getUserById as getAuthUserById } from "@mavibase/platform/services/auth-service"
+import { AuditLogService } from "@mavibase/platform/services/audit-log-service"
 
 export const getProfile = async (req: Request, res: Response) => {
   try {
@@ -27,6 +28,19 @@ export const updateProfile = async (req: Request, res: Response) => {
     const user = await userService.updateUser(req.userId!, {
       username,
       metadata,
+    })
+
+    void AuditLogService.log({
+      scope: "user",
+      actorId: req.userId!,
+      targetId: req.userId!,
+      action: "user.profile.update",
+      metadata: {
+        actorType: "USER",
+        message: `User ${req.userId!} updated profile`,
+        userId: req.userId!,
+        changes: { username, metadata },
+      },
     })
 
     res.json({
@@ -59,6 +73,18 @@ export const changePassword = async (req: Request, res: Response) => {
 
     await userService.changePassword(req.userId!, currentPassword, newPassword)
 
+    void AuditLogService.log({
+      scope: "user",
+      actorId: req.userId!,
+      targetId: req.userId!,
+      action: "user.password.change",
+      metadata: {
+        actorType: "USER",
+        message: `User ${req.userId!} changed password`,
+        userId: req.userId!,
+      },
+    })
+
     res.json({
       success: true,
       message: "Password changed successfully",
@@ -88,6 +114,19 @@ export const changeEmail = async (req: Request, res: Response) => {
 
     await userService.changeEmail(req.userId!, newEmail, password)
 
+    void AuditLogService.log({
+      scope: "user",
+      actorId: req.userId!,
+      targetId: req.userId!,
+      action: "user.email.change",
+      metadata: {
+        actorType: "USER",
+        message: `User ${req.userId!} changed email to ${newEmail}`,
+        userId: req.userId!,
+        newEmail,
+      },
+    })
+
     res.json({
       success: true,
       message: "Email change initiated. Please verify your new email.",
@@ -116,6 +155,18 @@ export const deleteAccount = async (req: Request, res: Response) => {
     }
 
     await userService.deleteAccount(req.userId!, password)
+
+    void AuditLogService.log({
+      scope: "user",
+      actorId: req.userId!,
+      targetId: req.userId!,
+      action: "user.account.delete",
+      metadata: {
+        actorType: "USER",
+        message: `User ${req.userId!} deleted their account`,
+        userId: req.userId!,
+      },
+    })
 
     res.json({
       success: true,

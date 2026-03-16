@@ -2,6 +2,7 @@ import type { Request, Response } from "express"
 import * as authService from "@mavibase/platform/services/auth-service"
 import * as tokenService from "@mavibase/platform/services/token-service"
 import crypto from "crypto"
+import { AuditLogService } from "@mavibase/platform/services/audit-log-service"
 
 // Helper to determine if we're actually on HTTPS (not just production mode)
 const isSecureContext = (req: Request): boolean => {
@@ -53,6 +54,21 @@ export const register = async (req: Request, res: Response) => {
     res.cookie("accessToken", result.accessToken, getCookieOptions(req, 15 * 60 * 1000)) // 15 minutes
     res.cookie("refreshToken", result.refreshToken, getCookieOptions(req, 7 * 24 * 60 * 60 * 1000)) // 7 days
 
+    void AuditLogService.log({
+      scope: "user",
+      actorId: result.user?.id,
+      targetId: result.user?.id,
+      action: "auth.register",
+      metadata: {
+        actorType: "USER",
+        message: `User ${result.user?.id} registered with email ${email}`,
+        userId: result.user?.id,
+        email,
+        ip: req.clientIp,
+        userAgent: req.get("user-agent"),
+      },
+    })
+
     res.status(201).json({
       success: true,
       message: "User registered successfully. Please verify your email.",
@@ -72,8 +88,13 @@ export const register = async (req: Request, res: Response) => {
 }
 
 export const login = async (req: Request, res: Response) => {
+  let email: string | undefined
+  let username: string | undefined
   try {
-    const { email, password, username } = req.body
+    const body = req.body || {}
+    email = body.email
+    username = body.username
+    const password = body.password
 
     if ((!email && !username) || !password) {
       return res.status(400).json({
@@ -95,6 +116,20 @@ export const login = async (req: Request, res: Response) => {
     res.cookie("accessToken", result.accessToken, getCookieOptions(req, 15 * 60 * 1000)) // 15 minutes
     res.cookie("refreshToken", result.refreshToken, getCookieOptions(req, 7 * 24 * 60 * 60 * 1000)) // 7 days
 
+    void AuditLogService.log({
+      scope: "user",
+      actorId: result.user?.id,
+      targetId: result.user?.id,
+      action: "auth.login",
+      metadata: {
+        actorType: "USER",
+        message: `User ${result.user?.id} logged in`,
+        userId: result.user?.id,
+        ip: req.clientIp,
+        userAgent: req.get("user-agent"),
+      },
+    })
+
     res.json({
       success: true,
       message: "Login successful",
@@ -104,6 +139,21 @@ export const login = async (req: Request, res: Response) => {
       },
     })
   } catch (error: any) {
+    void AuditLogService.log({
+      scope: "system",
+      actorId: null,
+      targetId: null,
+      action: "auth.login.failed",
+      metadata: {
+        actorType: "SYSTEM",
+        message: `Failed login attempt for ${email || username || "unknown"} from ${req.clientIp || "unknown ip"}`,
+        email,
+        username,
+        ip: req.clientIp,
+        userAgent: req.get("user-agent"),
+        error: error?.code || error?.message,
+      },
+    })
     res.status(error.statusCode || 500).json({
       error: {
         code: error.code || "LOGIN_FAILED",
@@ -124,6 +174,20 @@ export const logout = async (req: Request, res: Response) => {
 
     res.clearCookie("accessToken")
     res.clearCookie("refreshToken")
+
+    void AuditLogService.log({
+      scope: "user",
+      actorId: req.userId!,
+      targetId: req.userId!,
+      action: "auth.logout",
+      metadata: {
+        actorType: "USER",
+        message: `User ${req.userId!} logged out`,
+        userId: req.userId!,
+        ip: req.clientIp,
+        userAgent: req.get("user-agent"),
+      },
+    })
 
     res.json({
       success: true,
@@ -157,6 +221,19 @@ export const refreshToken = async (req: Request, res: Response) => {
     res.cookie("accessToken", result.accessToken, getCookieOptions(req, 15 * 60 * 1000)) // 15 minutes
     res.cookie("refreshToken", result.refreshToken, getCookieOptions(req, 7 * 24 * 60 * 60 * 1000)) // 7 days
 
+    void AuditLogService.log({
+      scope: "system",
+      actorId: null,
+      targetId: null,
+      action: "auth.token.refresh",
+      metadata: {
+        actorType: "SYSTEM",
+        message: `Access token refreshed`,
+        ip: req.clientIp,
+        userAgent: req.get("user-agent"),
+      },
+    })
+
     res.json({
       success: true,
       message: "Token refreshed successfully",
@@ -185,6 +262,20 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
     }
 
     await authService.requestPasswordReset(email)
+
+    void AuditLogService.log({
+      scope: "system",
+      actorId: null,
+      targetId: null,
+      action: "auth.password_reset.request",
+      metadata: {
+        actorType: "SYSTEM",
+        message: `Password reset requested for ${email}`,
+        email,
+        ip: req.clientIp,
+        userAgent: req.get("user-agent"),
+      },
+    })
 
     res.json({
       success: true,
@@ -215,6 +306,19 @@ export const resetPassword = async (req: Request, res: Response) => {
 
     await authService.resetPassword(token, password)
 
+    void AuditLogService.log({
+      scope: "system",
+      actorId: null,
+      targetId: null,
+      action: "auth.password_reset.complete",
+      metadata: {
+        actorType: "SYSTEM",
+        message: `Password reset completed`,
+        ip: req.clientIp,
+        userAgent: req.get("user-agent"),
+      },
+    })
+
     res.json({
       success: true,
       message: "Password reset successful",
@@ -244,6 +348,19 @@ export const verifyEmail = async (req: Request, res: Response) => {
 
     await authService.verifyEmail(token as string)
 
+    void AuditLogService.log({
+      scope: "system",
+      actorId: null,
+      targetId: null,
+      action: "auth.email.verify",
+      metadata: {
+        actorType: "SYSTEM",
+        message: `Email verified`,
+        ip: req.clientIp,
+        userAgent: req.get("user-agent"),
+      },
+    })
+
     res.json({
       success: true,
       message: "Email verified successfully",
@@ -272,6 +389,20 @@ export const resendVerification = async (req: Request, res: Response) => {
     }
 
     await authService.resendVerificationEmail(email)
+
+    void AuditLogService.log({
+      scope: "system",
+      actorId: null,
+      targetId: null,
+      action: "auth.email.verification.resend",
+      metadata: {
+        actorType: "SYSTEM",
+        message: `Verification email resent to ${email}`,
+        email,
+        ip: req.clientIp,
+        userAgent: req.get("user-agent"),
+      },
+    })
 
     res.json({
       success: true,

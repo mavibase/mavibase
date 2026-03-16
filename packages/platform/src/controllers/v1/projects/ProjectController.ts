@@ -2,6 +2,7 @@ import type { Request, Response } from "express"
 import * as projectService from "@mavibase/platform/services/project-service"
 import * as teamService from "@mavibase/platform/services/team-service"
 import { pool } from "@mavibase/platform/config/database"
+import { AuditLogService } from "@mavibase/platform/services/audit-log-service"
 
 export const createProject = async (req: Request, res: Response) => {
   try {
@@ -48,6 +49,21 @@ export const createProject = async (req: Request, res: Response) => {
       project.id,
       req.userId!,
     ])
+
+    void AuditLogService.log({
+      scope: "project",
+      actorId: req.userId!,
+      targetId: project.id,
+      action: "project.create",
+      metadata: {
+        actorType: "USER",
+        message: `User ${req.userId!} created project "${project.name}"`,
+        teamId,
+        projectId: project.id,
+        projectName: project.name,
+        environment,
+      },
+    })
 
     res.status(201).json({
       success: true,
@@ -168,6 +184,20 @@ export const updateProject = async (req: Request, res: Response) => {
       environment,
     })
 
+    void AuditLogService.log({
+      scope: "project",
+      actorId: req.userId!,
+      targetId: projectId,
+      action: "project.update",
+      metadata: {
+        actorType: "USER",
+        message: `User ${req.userId!} updated project ${projectId}`,
+        teamId: project.team_id,
+        projectId,
+        changes: { name, description, status, environment },
+      },
+    })
+
     res.json({
       success: true,
       message: "Project updated successfully",
@@ -201,6 +231,20 @@ export const deleteProject = async (req: Request, res: Response) => {
     const project = await projectService.getProjectById(projectId)
 
     await projectService.deleteProject(projectId)
+
+    void AuditLogService.log({
+      scope: "project",
+      actorId: req.userId!,
+      targetId: projectId,
+      action: "project.delete",
+      metadata: {
+        actorType: "USER",
+        message: `User ${req.userId!} deleted project ${projectId}${project?.name ? ` (${project.name})` : ""}`,
+        teamId: project?.team_id,
+        projectId,
+        projectName: project?.name,
+      },
+    })
 
     res.json({
       success: true,

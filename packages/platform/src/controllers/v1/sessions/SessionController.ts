@@ -1,5 +1,6 @@
 import type { Request, Response } from "express"
 import * as sessionService from "@mavibase/platform/services/session-service"
+import { AuditLogService } from "@mavibase/platform/services/audit-log-service"
 
 export const listSessions = async (req: Request, res: Response) => {
   try {
@@ -41,6 +42,19 @@ export const revokeSession = async (req: Request, res: Response) => {
 
     await sessionService.revokeSession(sessionId, req.userId!)
 
+    void AuditLogService.log({
+      scope: "user",
+      actorId: req.userId!,
+      targetId: req.userId!,
+      action: "session.revoke",
+      metadata: {
+        actorType: "USER",
+        message: `User ${req.userId!} revoked session ${sessionId}`,
+        userId: req.userId!,
+        revokedSessionId: sessionId,
+      },
+    })
+
     res.json({
       success: true,
       message: "Session revoked successfully",
@@ -59,6 +73,19 @@ export const revokeAllSessions = async (req: Request, res: Response) => {
   try {
     // Exclude current session from revocation
     await sessionService.revokeAllUserSessions(req.userId!, req.sessionId)
+
+    void AuditLogService.log({
+      scope: "user",
+      actorId: req.userId!,
+      targetId: req.userId!,
+      action: "session.revoke_all",
+      metadata: {
+        actorType: "USER",
+        message: `User ${req.userId!} revoked all other sessions`,
+        userId: req.userId!,
+        currentSessionId: req.sessionId,
+      },
+    })
 
     res.json({
       success: true,

@@ -10,6 +10,7 @@ import { setupRoutes as setupPlatformRoutes, setupMiddleware } from '@mavibase/p
 import { pool as databasePool } from '@mavibase/database/config/database';
 import { pool as platformPool, testConnection as testPlatformConnection } from '@mavibase/platform/config/database';
 import { connectRedis as connectPlatformRedis } from '@mavibase/platform/config/redis';
+import { startAuditLogRetentionJob } from '@mavibase/platform/services/audit-retention';
 import { logger } from '@mavibase/database/utils/logger';
 import { errorHandler as platformErrorHandler } from '@mavibase/platform/middleware/error-handler';
 
@@ -162,6 +163,9 @@ async function startServer() {
     if (!redisConnected) {
       logger.warn('Failed to connect to Redis - some features may not work');
     }
+
+    // Start best-effort audit log retention/rotation
+    startAuditLogRetentionJob();
 
     // Start server
     const server = app.listen(PORT, () => {

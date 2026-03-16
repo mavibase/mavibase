@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter, usePathname, useParams } from "next/navigation"
-import { Info, Key, BarChart3, Settings } from "lucide-react"
+import { Info, Key, BarChart3, Settings, ScrollText } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { useProjectContext } from "@/contexts/project-context"
@@ -28,6 +28,7 @@ export function ProjectTabsHeader() {
     { id: "general", label: "General", icon: Info, href: basePath },
     { id: "api-keys", label: "API Keys", icon: Key, href: `${basePath}/api-keys` },
     { id: "usage", label: "Usage", icon: BarChart3, href: `${basePath}/usage` },
+    { id: "audit-logs", label: "Audit Logs", icon: ScrollText, href: `${basePath}/audit-logs` },
     { id: "settings", label: "Settings", icon: Settings, href: `${basePath}/settings` },
   ] as const
 

@@ -17,6 +17,7 @@ import { generateId } from "@mavibase/database/utils/id-generator"
 import { pool } from "@mavibase/database/config/database"
 import type { PoolClient } from "pg"
 import { RelationshipManager } from "@mavibase/database/engine/relationships/RelationshipManager"
+import { AuditLogService } from "@mavibase/platform/services/audit-log-service"
 
 export class DocumentController {
   private repository = new DocumentRepository()
@@ -185,6 +186,25 @@ export class DocumentController {
         success: true,
         message: "Document created successfully",
         data: projectedData,
+      })
+
+      const identity: any = req.identity
+      const actorType = identity?.type === "user" ? "USER" : "SYSTEM"
+      const actorId = identity?.user_id || identity?.api_key_id || identity?.apiKeyId || null
+      void AuditLogService.log({
+        scope: "document",
+        actorId,
+        targetId: document.id,
+        action: "document.create",
+        metadata: {
+          actorType,
+          message: `${actorType} ${actorId || "unknown"} created document ${document.id} in collection ${collectionId}`,
+          projectId: req.identity!.project_id,
+          teamId: identity?.team_id,
+          databaseId,
+          collectionId,
+          documentId: document.id,
+        },
       })
     } catch (error) {
       next(error)

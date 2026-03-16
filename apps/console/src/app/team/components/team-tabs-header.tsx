@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter, usePathname } from "next/navigation"
-import { Users, Mail, BarChart3, Settings } from "lucide-react"
+import { Users, Mail, BarChart3, Settings, ScrollText } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useTeamContext } from "../layout"
 
@@ -9,6 +9,7 @@ const tabs = [
   { id: "members", label: "Members", icon: Users, href: "/team" },
   { id: "invites", label: "Invites", icon: Mail, href: "/team/invites" },
   { id: "usage", label: "Usage", icon: BarChart3, href: "/team/usage" },
+  { id: "audit-logs", label: "Audit Logs", icon: ScrollText, href: "/team/audit-logs" },
   { id: "settings", label: "Settings", icon: Settings, href: "/team/settings" },
 ] as const
 
@@ -35,7 +36,7 @@ export function TeamTabsHeader() {
               className="size-10 rounded-lg bg-secondary shrink-0"
             />
           ) : (
-            <div className="size-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-bold shrink-0">
+            <div className="size-10 rounded-lg bg-linear-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-bold shrink-0">
               {team.name?.[0]?.toUpperCase() || "T"}
             </div>
           )}

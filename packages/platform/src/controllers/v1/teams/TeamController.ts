@@ -1,6 +1,7 @@
 import type { Request, Response } from "express"
 import * as teamService from "@mavibase/platform/services/team-service"
 import { pool } from "@mavibase/platform/config/database"
+import { AuditLogService } from "@mavibase/platform/services/audit-log-service"
 
 export const createTeam = async (req: Request, res: Response) => {
   try {
@@ -21,6 +22,19 @@ export const createTeam = async (req: Request, res: Response) => {
       team.id,
       req.userId!,
     ])
+
+    void AuditLogService.log({
+      scope: "team",
+      actorId: req.userId!,
+      targetId: team.id,
+      action: "team.create",
+      metadata: {
+        actorType: "USER",
+        message: `User ${req.userId!} created team "${team.name}"`,
+        teamId: team.id,
+        teamName: team.name,
+      },
+    })
 
     res.status(201).json({
       success: true,
@@ -67,6 +81,19 @@ export const updateTeam = async (req: Request, res: Response) => {
       description,
     })
 
+    void AuditLogService.log({
+      scope: "team",
+      actorId: req.userId!,
+      targetId: teamId,
+      action: "team.update",
+      metadata: {
+        actorType: "USER",
+        message: `User ${req.userId!} updated team ${teamId}`,
+        teamId,
+        changes: { name, description },
+      },
+    })
+
     res.json({
       success: true,
       message: "Team updated successfully",
@@ -87,6 +114,18 @@ export const deleteTeam = async (req: Request, res: Response) => {
     const { teamId } = req.params
 
     await teamService.deleteTeam(teamId, req.userId!)
+
+    void AuditLogService.log({
+      scope: "team",
+      actorId: req.userId!,
+      targetId: teamId,
+      action: "team.delete",
+      metadata: {
+        actorType: "USER",
+        message: `User ${req.userId!} deleted team ${teamId}`,
+        teamId,
+      },
+    })
 
     res.json({
       success: true,
@@ -136,6 +175,21 @@ export const inviteMember = async (req: Request, res: Response) => {
 
     const invite = await teamService.inviteMember(teamId, req.userId!, email, role)
 
+    void AuditLogService.log({
+      scope: "team",
+      actorId: req.userId!,
+      targetId: teamId,
+      action: "team.member.invite",
+      metadata: {
+        actorType: "USER",
+        message: `User ${req.userId!} invited ${email} to team ${teamId} as ${role}`,
+        teamId,
+        invitedEmail: email,
+        role,
+        inviteId: invite?.id,
+      },
+    })
+
     res.json({
       success: true,
       message: "Invitation sent successfully",
@@ -157,6 +211,19 @@ export const acceptInvite = async (req: Request, res: Response) => {
 
     const result = await teamService.acceptInvite(inviteId, req.userId!)
 
+    void AuditLogService.log({
+      scope: "team",
+      actorId: req.userId!,
+      targetId: result.teamId,
+      action: "team.invite.accept",
+      metadata: {
+        actorType: "USER",
+        message: `User ${req.userId!} accepted invite ${inviteId} to team ${result.teamId}`,
+        teamId: result.teamId,
+        inviteId,
+      },
+    })
+
     res.json({
       success: true,
       message: "Invitation accepted successfully",
@@ -177,6 +244,19 @@ export const removeMember = async (req: Request, res: Response) => {
     const { teamId, userId } = req.params
 
     await teamService.removeMember(teamId, req.userId!, userId)
+
+    void AuditLogService.log({
+      scope: "team",
+      actorId: req.userId!,
+      targetId: teamId,
+      action: "team.member.remove",
+      metadata: {
+        actorType: "USER",
+        message: `User ${req.userId!} removed user ${userId} from team ${teamId}`,
+        teamId,
+        removedUserId: userId,
+      },
+    })
 
     res.json({
       success: true,
@@ -207,6 +287,20 @@ export const updateMemberRole = async (req: Request, res: Response) => {
     }
 
     await teamService.updateMemberRole(teamId, req.userId!, userId, role)
+
+    void AuditLogService.log({
+      scope: "team",
+      actorId: req.userId!,
+      targetId: teamId,
+      action: "team.member.role.update",
+      metadata: {
+        actorType: "USER",
+        message: `User ${req.userId!} updated role for user ${userId} in team ${teamId} to ${role}`,
+        teamId,
+        memberUserId: userId,
+        newRole: role,
+      },
+    })
 
     res.json({
       success: true,
@@ -246,7 +340,23 @@ export const revokeInvite = async (req: Request, res: Response) => {
   try {
     const { inviteId } = req.params
 
+    const inviteResult = await pool.query(`SELECT team_id FROM team_invitations WHERE id = $1`, [inviteId])
+    const teamId = inviteResult.rows[0]?.team_id
+
     await teamService.revokeInvite(inviteId, req.userId!)
+
+    void AuditLogService.log({
+      scope: "team",
+      actorId: req.userId!,
+      targetId: teamId,
+      action: "team.invite.revoke",
+      metadata: {
+        actorType: "USER",
+        message: `User ${req.userId!} revoked invite ${inviteId}${teamId ? ` for team ${teamId}` : ""}`,
+        teamId,
+        inviteId,
+      },
+    })
 
     res.json({
       success: true,

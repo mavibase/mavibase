@@ -12,6 +12,7 @@ import {
   Lock,
   BarChart2,
   LayoutDashboard,
+  ScrollText,
 } from "lucide-react"
 import {
   AreaChart,
@@ -46,6 +47,13 @@ interface UsageStats {
 interface TimeSeriesPoint {
   label: string
   operations: number
+}
+
+interface AuditUsageRow {
+  scope: string
+  count: number
+  metadataBytes: number
+  lastTimestamp: string | null
 }
 
 /* ------------------------------------------------------------------ */
@@ -207,6 +215,7 @@ export function OverviewContent() {
   const { project } = useProjectContext()
   const [range, setRange] = useState<Range>("7d")
   const [usage, setUsage] = useState<UsageStats | null>(null)
+  const [auditUsage, setAuditUsage] = useState<{ count: number; bytes: number; last: string | null } | null>(null)
   const [timeSeries, setTimeSeries] = useState<TimeSeriesPoint[]>([])
   const [loadingUsage, setLoadingUsage] = useState(true)
   const [loadingChart, setLoadingChart] = useState(true)
@@ -214,9 +223,10 @@ export function OverviewContent() {
 
   const fetchUsage = useCallback(async (projectId: string) => {
     try {
-      const [usageRes, statsRes] = await Promise.all([
+      const [usageRes, statsRes, auditRes] = await Promise.all([
         axiosInstance.auth.get(`/projects/${projectId}/usage`),
         axiosInstance.auth.get(`/projects/${projectId}/stats`),
+        axiosInstance.auth.get(`/audit-logs/usage`, { headers: { "X-Project-Id": projectId } }),
       ])
       const u = usageRes.data?.data?.usage || {}
       const s = statsRes.data?.data?.stats || {}
@@ -230,8 +240,19 @@ export function OverviewContent() {
         egress_limit_bytes: Number(u.egress_bytes?.limit ?? 100 * 1024 * 1024 * 1024),
         egress_reset_at:    u.egress_bytes?.reset_at ?? null,
       })
+
+      const auditRows: AuditUsageRow[] = auditRes.data?.data?.usage ?? []
+      const totalCount = auditRows.reduce((acc, r) => acc + Number(r.count || 0), 0)
+      const totalBytes = auditRows.reduce((acc, r) => acc + Number(r.metadataBytes || 0), 0)
+      const last = auditRows.reduce<string | null>((acc, r) => {
+        if (!r.lastTimestamp) return acc
+        if (!acc) return r.lastTimestamp
+        return new Date(r.lastTimestamp).getTime() > new Date(acc).getTime() ? r.lastTimestamp : acc
+      }, null)
+      setAuditUsage({ count: totalCount, bytes: totalBytes, last })
     } catch {
       setUsage({ databases: 0, collections: 0, documents: 0, storage_bytes: 0, api_keys: 0, egress_bytes: 0, egress_limit_bytes: 100 * 1024 * 1024 * 1024, egress_reset_at: null })
+      setAuditUsage({ count: 0, bytes: 0, last: null })
     } finally {
       setLoadingUsage(false)
     }
@@ -319,7 +340,7 @@ export function OverviewContent() {
 
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <StatCard label="Databases"   value={formatNumber(usage?.databases ?? 0)}    icon={Database}  loading={loadingUsage} />
         <StatCard label="Collections" value={formatNumber(usage?.collections ?? 0)}  icon={FileText}  loading={loadingUsage} />
         <StatCard label="Documents"   value={formatNumber(usage?.documents ?? 0)}    icon={FileText}  loading={loadingUsage} />
@@ -327,6 +348,13 @@ export function OverviewContent() {
           label="Storage Used"
           value={formatBytes(usage?.storage_bytes ?? 0)}
           icon={HardDrive}
+          loading={loadingUsage}
+        />
+        <StatCard
+          label="Audit Logs"
+          value={formatNumber(auditUsage?.count ?? 0)}
+          sub={auditUsage ? `${formatBytes(auditUsage.bytes)} metadata` : undefined}
+          icon={ScrollText}
           loading={loadingUsage}
         />
       </div>

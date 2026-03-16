@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express"
 import * as apiKeyService from "../services/api-key-service"
 import * as projectService from "../services/project-service"
+import { AuditLogService } from "../services/audit-log-service"
 
 // Extend Express Request to include API key context
 declare global {
@@ -26,6 +27,20 @@ export const requireAPIKey = async (req: Request, res: Response, next: NextFunct
     const authHeader = req.get("Authorization")
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      void AuditLogService.log({
+        scope: "system",
+        actorId: null,
+        targetId: null,
+        action: "security.api_key.missing",
+        metadata: {
+          actorType: "SYSTEM",
+          message: `API key missing for ${req.method} ${req.path}`,
+          method: req.method,
+          path: req.path,
+          ip: (req as any).clientIp,
+          userAgent: req.get("user-agent"),
+        },
+      })
       return res.status(401).json({
         error: {
           code: "UNAUTHORIZED",
@@ -40,6 +55,20 @@ export const requireAPIKey = async (req: Request, res: Response, next: NextFunct
     const { valid, apiKey: apiKeyData } = await apiKeyService.verifyAPIKey(apiKey)
 
     if (!valid || !apiKeyData) {
+      void AuditLogService.log({
+        scope: "system",
+        actorId: null,
+        targetId: null,
+        action: "security.api_key.invalid",
+        metadata: {
+          actorType: "SYSTEM",
+          message: `Invalid API key used for ${req.method} ${req.path}`,
+          method: req.method,
+          path: req.path,
+          ip: (req as any).clientIp,
+          userAgent: req.get("user-agent"),
+        },
+      })
       return res.status(401).json({
         error: {
           code: "INVALID_API_KEY",
@@ -78,6 +107,20 @@ export const requireScopes = (requiredScopes: string[]) => {
     const identity = (req as any).identity
 
     if (!identity) {
+      void AuditLogService.log({
+        scope: "system",
+        actorId: null,
+        targetId: null,
+        action: "security.unauthorized",
+        metadata: {
+          actorType: "SYSTEM",
+          message: `Unauthorized request (no identity) to ${req.method} ${req.path}`,
+          method: req.method,
+          path: req.path,
+          ip: (req as any).clientIp,
+          userAgent: req.get("user-agent"),
+        },
+      })
       return res.status(401).json({
         error: {
           code: "UNAUTHORIZED",
@@ -99,6 +142,24 @@ export const requireScopes = (requiredScopes: string[]) => {
     const hasScopes = apiKeyService.verifyAPIKeyScopes({ scopes } as any, requiredScopes)
 
     if (!hasScopes) {
+      void AuditLogService.log({
+        scope: "system",
+        actorId: identity.api_key_id || null,
+        targetId: identity.project_id || null,
+        action: "security.api_key.insufficient_scopes",
+        metadata: {
+          actorType: "SYSTEM",
+          message: `API key lacks scopes for ${req.method} ${req.path}`,
+          method: req.method,
+          path: req.path,
+          requiredScopes,
+          actualScopes: scopes,
+          projectId: identity.project_id,
+          teamId: identity.team_id,
+          ip: (req as any).clientIp,
+          userAgent: req.get("user-agent"),
+        },
+      })
       return res.status(403).json({
         error: {
           code: "INSUFFICIENT_PERMISSIONS",
@@ -118,6 +179,20 @@ export const requireScopes = (requiredScopes: string[]) => {
 export const enforceProjectIsolation = async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!req.projectId || !req.apiKey) {
+      void AuditLogService.log({
+        scope: "system",
+        actorId: null,
+        targetId: null,
+        action: "security.api_key.missing",
+        metadata: {
+          actorType: "SYSTEM",
+          message: `API key authentication required for ${req.method} ${req.path}`,
+          method: req.method,
+          path: req.path,
+          ip: (req as any).clientIp,
+          userAgent: req.get("user-agent"),
+        },
+      })
       return res.status(401).json({
         error: {
           code: "UNAUTHORIZED",
@@ -133,6 +208,24 @@ export const enforceProjectIsolation = async (req: Request, res: Response, next:
     const resourceProjectId = req.body.project_id || req.params.projectId
 
     if (resourceProjectId && resourceProjectId !== apiKeyProjectId) {
+      void AuditLogService.log({
+        scope: "system",
+        actorId: req.apiKey.id,
+        targetId: apiKeyProjectId,
+        action: "security.cross_project_access_denied",
+        metadata: {
+          actorType: "SYSTEM",
+          message: `Cross-project access denied for API key ${req.apiKey.id}`,
+          apiKeyId: req.apiKey.id,
+          apiKeyProjectId,
+          resourceProjectId,
+          method: req.method,
+          path: req.path,
+          ip: (req as any).clientIp,
+          userAgent: req.get("user-agent"),
+          projectId: apiKeyProjectId,
+        },
+      })
       return res.status(403).json({
         error: {
           code: "CROSS_PROJECT_ACCESS_DENIED",
@@ -145,6 +238,20 @@ export const enforceProjectIsolation = async (req: Request, res: Response, next:
     const project = await projectService.getProjectById(apiKeyProjectId)
 
     if (!project) {
+      void AuditLogService.log({
+        scope: "system",
+        actorId: req.apiKey.id,
+        targetId: apiKeyProjectId,
+        action: "security.project_not_found",
+        metadata: {
+          actorType: "SYSTEM",
+          message: `API key ${req.apiKey.id} referenced missing project ${apiKeyProjectId}`,
+          apiKeyId: req.apiKey.id,
+          projectId: apiKeyProjectId,
+          method: req.method,
+          path: req.path,
+        },
+      })
       return res.status(404).json({
         error: {
           code: "PROJECT_NOT_FOUND",
@@ -154,6 +261,20 @@ export const enforceProjectIsolation = async (req: Request, res: Response, next:
     }
 
     if (project.status !== "active") {
+      void AuditLogService.log({
+        scope: "system",
+        actorId: req.apiKey.id,
+        targetId: apiKeyProjectId,
+        action: "security.project_disabled",
+        metadata: {
+          actorType: "SYSTEM",
+          message: `API key ${req.apiKey.id} attempted access to disabled project ${apiKeyProjectId}`,
+          apiKeyId: req.apiKey.id,
+          projectId: apiKeyProjectId,
+          method: req.method,
+          path: req.path,
+        },
+      })
       return res.status(403).json({
         error: {
           code: "PROJECT_DISABLED",

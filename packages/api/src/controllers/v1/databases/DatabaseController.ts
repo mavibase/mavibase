@@ -6,6 +6,7 @@ import { QuotaManager } from "@mavibase/database/storage/QuotaManager"
 import { AppError } from "@mavibase/api/middleware/error-handler"
 import { InputValidator } from "@mavibase/api/middleware/input-validator"
 import { generateId, generateKey } from "@mavibase/database/utils/id-generator"
+import { AuditLogService } from "@mavibase/platform/services/audit-log-service"
 
 export class DatabaseController {
   private repository = new DatabaseRepository()
@@ -69,6 +70,24 @@ export class DatabaseController {
         project_id,
         req.identity!.team_id,
       )
+
+      const identity: any = req.identity
+      const actorType = identity?.type === "user" ? "USER" : "SYSTEM"
+      const actorId = identity?.user_id || identity?.api_key_id || identity?.apiKeyId || null
+      void AuditLogService.log({
+        scope: "database",
+        actorId,
+        targetId: database.id,
+        action: "database.create",
+        metadata: {
+          actorType,
+          message: `${actorType} ${actorId || "unknown"} created database "${name}"`,
+          projectId,
+          teamId: identity?.team_id,
+          databaseId: database.id,
+          databaseName: name,
+        },
+      })
 
       res.status(201).json({
         success: true,
@@ -387,6 +406,24 @@ export class DatabaseController {
         project_id,
       )
 
+      const identity: any = req.identity
+      const actorType = identity?.type === "user" ? "USER" : "SYSTEM"
+      const actorId = identity?.user_id || identity?.api_key_id || identity?.apiKeyId || null
+      void AuditLogService.log({
+        scope: "database",
+        actorId,
+        targetId: databaseId,
+        action: "database.update",
+        metadata: {
+          actorType,
+          message: `${actorType} ${actorId || "unknown"} updated database ${databaseId}`,
+          projectId: project_id,
+          teamId: identity?.team_id,
+          databaseId,
+          changes: { name, description },
+        },
+      })
+
       res.json({
         success: true,
         message: `Database "${updated.name}" updated successfully`,
@@ -419,6 +456,24 @@ export class DatabaseController {
       }
 
       await this.repository.delete(databaseId, project_id)
+
+      const identity: any = req.identity
+      const actorType = identity?.type === "user" ? "USER" : "SYSTEM"
+      const actorId = identity?.user_id || identity?.api_key_id || identity?.apiKeyId || null
+      void AuditLogService.log({
+        scope: "database",
+        actorId,
+        targetId: databaseId,
+        action: "database.delete",
+        metadata: {
+          actorType,
+          message: `${actorType} ${actorId || "unknown"} deleted database "${database.name}"`,
+          projectId: project_id,
+          teamId: identity?.team_id,
+          databaseId,
+          databaseName: database.name,
+        },
+      })
 
       res.json({
         success: true,

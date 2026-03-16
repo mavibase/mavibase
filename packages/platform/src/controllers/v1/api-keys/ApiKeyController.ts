@@ -2,6 +2,7 @@ import type { Request, Response } from "express"
 import * as apiKeyService from "@mavibase/platform/services/api-key-service"
 import * as projectService from "@mavibase/platform/services/project-service"
 import * as teamService from "@mavibase/platform/services/team-service"
+import { AuditLogService } from "@mavibase/platform/services/audit-log-service"
 
 export const createAPIKey = async (req: Request, res: Response) => {
   try {
@@ -42,6 +43,22 @@ export const createAPIKey = async (req: Request, res: Response) => {
       name,
       scopes,
       expiresAt: expiresAt ? new Date(expiresAt) : undefined,
+    })
+
+    void AuditLogService.log({
+      scope: "project",
+      actorId: req.userId!,
+      targetId: projectId,
+      action: "api_key.create",
+      metadata: {
+        actorType: "USER",
+        message: `User ${req.userId!} created API key "${name}" for project ${projectId}`,
+        projectId,
+        teamId: req.get("X-Team-Id") || undefined,
+        apiKeyId: result?.key?.id || result?.id,
+        scopes,
+        expiresAt,
+      },
     })
 
     res.status(201).json({
@@ -138,6 +155,19 @@ export const revokeAPIKey = async (req: Request, res: Response) => {
 
     await apiKeyService.revokeAPIKey(keyId, projectId)
 
+    void AuditLogService.log({
+      scope: "project",
+      actorId: req.userId!,
+      targetId: projectId,
+      action: "api_key.revoke",
+      metadata: {
+        actorType: "USER",
+        message: `User ${req.userId!} revoked API key ${keyId} for project ${projectId}`,
+        projectId,
+        apiKeyId: keyId,
+      },
+    })
+
     res.json({
       success: true,
       message: "API key revoked successfully",
@@ -179,6 +209,19 @@ export const deleteAPIKey = async (req: Request, res: Response) => {
 
     await apiKeyService.deleteAPIKey(keyId, projectId)
 
+    void AuditLogService.log({
+      scope: "project",
+      actorId: req.userId!,
+      targetId: projectId,
+      action: "api_key.delete",
+      metadata: {
+        actorType: "USER",
+        message: `User ${req.userId!} deleted API key ${keyId} for project ${projectId}`,
+        projectId,
+        apiKeyId: keyId,
+      },
+    })
+
     res.json({
       success: true,
       message: "API key deleted successfully",
@@ -219,6 +262,20 @@ export const rotateAPIKey = async (req: Request, res: Response) => {
     }
 
     const newKey = await apiKeyService.rotateAPIKey(keyId, projectId, req.userId!)
+
+    void AuditLogService.log({
+      scope: "project",
+      actorId: req.userId!,
+      targetId: projectId,
+      action: "api_key.rotate",
+      metadata: {
+        actorType: "USER",
+        message: `User ${req.userId!} rotated API key ${keyId} for project ${projectId}`,
+        projectId,
+        apiKeyId: keyId,
+        newApiKeyId: (newKey as any)?.key?.id || (newKey as any)?.id,
+      },
+    })
 
     res.json({
       success: true,
@@ -262,6 +319,20 @@ export const updateAPIKey = async (req: Request, res: Response) => {
     }
 
     const updatedKey = await apiKeyService.updateAPIKey(keyId, projectId, { name, scopes })
+
+    void AuditLogService.log({
+      scope: "project",
+      actorId: req.userId!,
+      targetId: projectId,
+      action: "api_key.update",
+      metadata: {
+        actorType: "USER",
+        message: `User ${req.userId!} updated API key ${keyId} for project ${projectId}`,
+        projectId,
+        apiKeyId: keyId,
+        changes: { name, scopes },
+      },
+    })
 
     res.json({
       success: true,
