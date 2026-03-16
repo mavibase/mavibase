@@ -1,17 +1,10 @@
-# ============================================
-# Mavibase Docker Image Publish Workflow
-# ============================================
-# Builds & pushes Docker images to GHCR
-# Multi-arch, caching, and attestation included
-# ============================================
-
 name: Publish Docker Image
 
 on:
   release:
     types: [published]
   push:
-    tags: ['v*']  # Only trigger on version tags (e.g., v0.1.0, v1.0.0)
+    tags: ['v*'] 
 
 env:
   REGISTRY: ghcr.io
