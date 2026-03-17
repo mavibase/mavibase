@@ -4,7 +4,7 @@
   </a>
 </p>
 
-<h1 align="center">Mavibase | Build backends in minutes</h1>
+<h1 align="center"></h1>
 
 <p align="center">
   <a href="https://github.com/mavibase/mavibase/releases"><img src="https://img.shields.io/github/v/release/mavibase/mavibase?style=flat-square" alt="GitHub Release" /></a>
@@ -20,7 +20,7 @@ Mavibase is an open-source Backend-as-a-Service (BaaS) platform that provides au
 
 Built with TypeScript and designed for multi-tenancy, it handles the backend primitives every application needs without vendor lock-in.
 
-**Databases:** PostgreSQL (vanilla), Neon, Supabase, AWS RDS, or any PostgreSQL-compatible database
+**Databases:** PostgreSQL (vanilla), Neon, AWS RDS, or any PostgreSQL-compatible database
 
 **Cache:** Redis, Upstash, or any Redis-compatible store
 
