@@ -1,1 +1,0 @@
-// TransactionLogger implementation
