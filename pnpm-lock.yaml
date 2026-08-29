@@ -1,0 +1,23 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .: {}
+
+  apps/console: {}
+
+  apps/server: {}
+
+  apps/worker: {}
+
+  packages/contracts: {}
+
+  packages/core:
+    dependencies:
+      '@mavibase/contracts':
+        specifier: workspace:*
+        version: link:../contracts
