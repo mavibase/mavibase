@@ -6,6 +6,7 @@ export { RedisRateLimiter } from "./rate-limiter.js";
 export { RedisIdempotencyStore } from "./idempotency-store.js";
 export { RedisDistributedLock } from "./distributed-lock.js";
 export { RedisDistributedCache } from "./distributed-cache.js";
+export { RedisUsageAggregationBuffer } from "./usage-aggregation-buffer.js";
 export type {
   IdempotencyClaim,
   IdempotencyRecord,
@@ -19,4 +20,7 @@ export type {
   RateLimitPolicy,
   RateLimitResult,
   SessionInvalidationMessage,
+  UsageAggregationBufferIncrement,
+  UsageAggregationBufferKey,
+  UsageAggregationBufferRecord,
 } from "./types.js";

@@ -82,3 +82,21 @@ export interface IdempotencyClaim {
 export interface RedisCacheOptions {
   readonly keyPrefix?: string;
 }
+
+export interface UsageAggregationBufferKey {
+  readonly scope: string;
+  readonly metric: string;
+  readonly windowStart: number;
+  readonly dimensions?: Readonly<Record<string, string>>;
+}
+
+export interface UsageAggregationBufferIncrement extends UsageAggregationBufferKey {
+  readonly amount: number;
+  readonly ttlSeconds: number;
+}
+
+export interface UsageAggregationBufferRecord extends UsageAggregationBufferKey {
+  readonly dimensions: Readonly<Record<string, string>>;
+  readonly amount: number;
+  readonly remainingTtlSeconds: number;
+}

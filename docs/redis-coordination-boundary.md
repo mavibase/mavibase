@@ -1,6 +1,6 @@
 # Redis Coordination Boundary
 
-Task 0.6.2 adds bounded Redis coordination primitives. Redis remains ephemeral infrastructure and is not the source of truth for platform entities, durable audit, migration history, or billable usage.
+Task 0.6.2 and Task 0.6.3 add bounded Redis coordination primitives. Redis remains ephemeral infrastructure and is not the source of truth for platform entities, durable audit, migration history, or billable usage.
 
 ## Rate limits
 
@@ -18,4 +18,10 @@ Task 0.6.2 adds bounded Redis coordination primitives. Redis remains ephemeral i
 
 `RedisDistributedCache` namespaces keys, requires bounded TTLs, validates cached values on read, and removes malformed values. Cached data is derived data and may be rebuilt after Redis loss.
 
-The concrete Redis client, Lua execution adapter, eviction policy, failure metrics, and distributed integration tests remain deployment/runtime work. Usage aggregation buffers belong to Task 0.6.3.
+The concrete Redis client, Lua execution adapter, eviction policy, failure metrics, and distributed integration tests remain deployment/runtime work.
+
+## Usage aggregation buffers
+
+`RedisUsageAggregationBuffer` atomically adds positive measurements to a namespaced metric/window/dimensions key and applies expiry on the first write. It supports reading the current aggregate and clearing it after a durable usage owner has persisted the value. Buffer keys use epoch-second windows and a maximum one-day TTL so repeated writes cannot keep a buffer alive indefinitely.
+
+The buffer is a best-effort short-window optimization. Redis loss, eviction, expiry, or an acknowledged clear can lose an aggregate unless the durable usage owner has already recorded it. Later usage accounting must provide the durable measurement identity, rollup, retry, and reconciliation behavior; this package does not implement those services.
