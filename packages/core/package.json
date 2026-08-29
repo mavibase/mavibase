@@ -12,6 +12,9 @@
   "files": [
     "dist"
   ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
   "dependencies": {
     "@mavibase/contracts": "workspace:*"
   }

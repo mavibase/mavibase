@@ -20,6 +20,12 @@
     "paths": {
       "@mavibase/config": [
         "packages/config/src/index.ts"
+      ],
+      "@mavibase/contracts": [
+        "packages/contracts/src/index.ts"
+      ],
+      "@mavibase/core": [
+        "packages/core/src/index.ts"
       ]
     }
   },

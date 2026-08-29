@@ -11,5 +11,8 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
 }
