@@ -21,3 +21,14 @@ export type {
   PostgresTransaction,
   PostgresTransactionProvider,
 } from "./postgres-foundation.js";
+export type {
+  PostgresBackupMetadata,
+  PostgresBackupProvider,
+  PostgresBackupRequest,
+  PostgresBackupType,
+  PostgresDatabaseProvisioningRequest,
+  PostgresOperationReference,
+  PostgresOperationStatus,
+  PostgresProvisionedDatabase,
+  PostgresProvisioningProvider,
+} from "./postgres-operations.js";

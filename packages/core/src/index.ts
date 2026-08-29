@@ -26,3 +26,7 @@ export {
 } from "./postgres/migrations.js";
 export { compilePostgresSelect } from "./postgres/query-compiler.js";
 export { withPostgresTransaction } from "./postgres/transactions.js";
+export {
+  requestPostgresBackup,
+  requestPostgresDatabaseProvisioning,
+} from "./postgres/backup-provisioning.js";
