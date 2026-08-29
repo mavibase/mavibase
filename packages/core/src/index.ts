@@ -15,3 +15,14 @@ export type {
   SqlStatement,
 } from "./postgres/schema-ddl.js";
 export { introspectPostgresSchema } from "./postgres/schema-introspector.js";
+export {
+  createEnableExtensionStatement,
+  listPostgresExtensions,
+  validatePostgresExtensionRequest,
+} from "./postgres/extensions.js";
+export {
+  applyPostgresMigrationPlan,
+  validatePostgresMigrationPlan,
+} from "./postgres/migrations.js";
+export { compilePostgresSelect } from "./postgres/query-compiler.js";
+export { withPostgresTransaction } from "./postgres/transactions.js";
