@@ -1,0 +1,8 @@
+{
+  "name": "@mavibase/core",
+  "private": true,
+  "version": "0.0.0",
+  "dependencies": {
+    "@mavibase/contracts": "workspace:*"
+  }
+}
