@@ -29,6 +29,12 @@
       ],
       "@mavibase/redis": [
         "packages/redis/src/index.ts"
+      ],
+      "@mavibase/security": [
+        "packages/security/src/index.ts"
+      ],
+      "@mavibase/http": [
+        "packages/http/src/index.ts"
       ]
     }
   },

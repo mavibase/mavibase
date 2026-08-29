@@ -35,3 +35,17 @@ importers:
       '@mavibase/contracts':
         specifier: workspace:*
         version: link:../contracts
+
+  packages/http:
+    dependencies:
+      '@mavibase/security':
+        specifier: workspace:*
+        version: link:../security
+
+  packages/redis: {}
+
+  packages/security:
+    dependencies:
+      '@mavibase/config':
+        specifier: workspace:*
+        version: link:../config
