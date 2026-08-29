@@ -26,6 +26,9 @@
       ],
       "@mavibase/core": [
         "packages/core/src/index.ts"
+      ],
+      "@mavibase/redis": [
+        "packages/redis/src/index.ts"
       ]
     }
   },
