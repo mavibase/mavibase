@@ -8,11 +8,25 @@ importers:
 
   .: {}
 
-  apps/console: {}
+  apps/console:
+    dependencies:
+      '@mavibase/config':
+        specifier: workspace:*
+        version: link:../../packages/config
 
-  apps/server: {}
+  apps/server:
+    dependencies:
+      '@mavibase/config':
+        specifier: workspace:*
+        version: link:../../packages/config
 
-  apps/worker: {}
+  apps/worker:
+    dependencies:
+      '@mavibase/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+
+  packages/config: {}
 
   packages/contracts: {}
 

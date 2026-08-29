@@ -15,7 +15,13 @@
     "verbatimModuleSyntax": true,
     "sourceMap": true,
     "inlineSources": false,
-    "noEmitOnError": true
+    "noEmitOnError": true,
+    "baseUrl": ".",
+    "paths": {
+      "@mavibase/config": [
+        "packages/config/src/index.ts"
+      ]
+    }
   },
   "include": [
     "apps",
