@@ -12,7 +12,10 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": true,
+    "sourceMap": true,
+    "inlineSources": false,
+    "noEmitOnError": true
   },
   "include": [
     "apps",
